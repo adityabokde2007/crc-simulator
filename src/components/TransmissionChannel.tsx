@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { MousePointerClick, RadioTower } from 'lucide-react';
-import { clsx } from 'clsx';
 
 interface TransmissionChannelProps {
   codeword: string | null;
@@ -10,22 +9,16 @@ interface TransmissionChannelProps {
 export function TransmissionChannel({ codeword, onTransmit }: TransmissionChannelProps) {
   const [currentCodeword, setCurrentCodeword] = useState<string | null>(null);
   const [flippedIndex, setFlippedIndex] = useState<number | null>(null);
-  const [pulseIndex, setPulseIndex] = useState<number | null>(null);
   const [manualIndex, setManualIndex] = useState<string>('');
 
   useEffect(() => {
     setCurrentCodeword(codeword);
     setFlippedIndex(null);
-    setPulseIndex(null);
     setManualIndex('');
   }, [codeword]);
 
   const triggerAnimation = (index: number) => {
     setFlippedIndex(index);
-    setPulseIndex(index);
-    setTimeout(() => {
-      setPulseIndex(null);
-    }, 1000);
   };
 
   const handleManualFlip = () => {
