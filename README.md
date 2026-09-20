@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="public/favicon.svg" alt="CRC Simulator Logo" width="120" height="120" />
+  <img src="https://raw.githubusercontent.com/adityabokde2007/crc-simulator/main/public/favicon.svg" alt="CRC Simulator Logo" width="120" height="120" />
   
   # CRC Simulator
   
@@ -20,25 +20,25 @@ CRC Simulator is a client-side educational tool built for a college microproject
 
 ## Features
 
-### 📤 Sender Panel
+### Sender Panel
 - **Dual Input Modes:** Input binary directly (e.g., `100000111`) or via polynomial expression (e.g., `x^8+x^2+x+1`).
 - **Encoding Generation:** Calculates the CRC remainder and generates the transmitted codeword.
 - **Division Steps:** View the exact step-by-step modulo-2 long division operations in a dedicated modal.
 
-### 📡 Transmission Channel
+### Transmission Channel
 - **Indexed Bit Visualization:** View the codeword cleanly aligned with explicit bit indices.
 - **Error Injection:** Introduce noise by manually flipping a bit by its index or generating random errors.
 - **Visual Feedback:** Flipped bits are explicitly highlighted for clarity before sending data to the receiver.
 
-### 📥 Receiver Panel
+### Receiver Panel
 - **Integrity Verification:** Scans the received codeword and verifies it against the generator polynomial.
 - **Pass/Fail Status:** Clean, responsive UI indicating whether the payload was clean or corrupted.
 - **Calculation Modal:** See the step-by-step math used to resolve the zero or non-zero remainder.
 
-### 📄 PDF Report
+### PDF Report
 - **Downloadable Summaries:** Generates and exports a summary report of the full simulation run (including polynomials, payloads, and results) straight to PDF using jsPDF.
 
-### 🎨 UI/UX
+### UI/UX
 - **Modern Design:** Crisp light theme with a steel-blue accent palette.
 - **Clarity:** Monospace binary display and a clean, responsive layout designed for desktop and mobile web experiences.
 
@@ -100,7 +100,7 @@ crc-simulator/
 ### Installation
 Clone the repository and install the dependencies:
 ```bash
-git clone https://github.com/yourusername/crc-simulator.git
+git clone https://github.com/adityabokde2007/crc-simulator.git
 cd crc-simulator
 npm install
 ```
@@ -120,9 +120,9 @@ Then, open your browser and navigate to `http://localhost:5173`.
 Since the app has no backend or complex environment configurations, deploying is as simple as building the static files and hosting them.
 
 1. Build the production bundle:
-   ```bash
+```bash
    npm run build
-   ```
+```
 2. Deploy the `dist/` folder to your preferred static hosting platform like **Vercel**, **Netlify**, or **GitHub Pages**. No backend configuration or environment variables are needed!
 
 <br />
