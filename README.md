@@ -1,5 +1,4 @@
 <div align="center">
-  <img src="https://raw.githubusercontent.com/adityabokde2007/crc-simulator/main/public/favicon.svg" alt="CRC Simulator Logo" width="120" height="120" />
   
   # CRC Simulator
   
