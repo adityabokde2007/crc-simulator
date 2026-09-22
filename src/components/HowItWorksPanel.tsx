@@ -22,7 +22,7 @@ export function HowItWorksPanel({ isOpen, onToggle }: HowItWorksPanelProps) {
       
       <div className={clsx(
         "transition-all duration-300 ease-in-out overflow-hidden",
-        isOpen ? "max-h-96 opacity-100" : "max-h-0 opacity-0"
+        isOpen ? "max-h-[1000px] opacity-100" : "max-h-0 opacity-0"
       )}>
         <div className="p-6 pt-2 text-text-secondary text-sm leading-relaxed space-y-3">
           <p>
