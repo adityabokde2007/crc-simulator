@@ -37,7 +37,7 @@ function App() {
               <img src="/website icon.png" alt="CRC Simulator logo" width={36} height={36} className="object-contain rounded-lg" />
               <div>
                 <h1 className="text-xl font-bold text-text-primary tracking-tight">CRC Simulator</h1>
-                <p className="text-xs text-text-secondary font-medium">Visualizing Cyclic Redundancy Check error detection</p>
+                <p className="text-xs text-text-secondary font-medium hidden sm:block">Visualizing Cyclic Redundancy Check error detection</p>
               </div>
             </div>
 
@@ -45,7 +45,7 @@ function App() {
             <div className="flex items-center gap-2">
               <button
                 onClick={handleHowItWorksClick}
-                className="flex items-center gap-2 bg-accent text-white px-4 py-2 rounded-md hover:bg-accent/90 transition-colors font-medium text-sm h-9"
+                className="flex items-center justify-center gap-2 bg-accent text-white px-3 sm:px-4 py-2 rounded-md hover:bg-accent/90 transition-colors font-medium text-sm h-9 whitespace-nowrap shrink-0"
                 title="How It Works"
               >
                 How It Works
