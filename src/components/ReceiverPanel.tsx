@@ -3,7 +3,7 @@ import { verifyCRC } from '../utils/crc';
 import type { Step } from '../utils/crc';
 import { DivisionSteps } from './DivisionSteps';
 import { Modal } from './Modal';
-import { ShieldCheck, ShieldAlert, Cpu, Calculator, Download, RotateCcw } from 'lucide-react';
+import { Calculator, Download, RotateCcw } from 'lucide-react';
 import { clsx } from 'clsx';
 import { jsPDF } from 'jspdf';
 
@@ -58,7 +58,7 @@ export function ReceiverPanel({ codeword, poly, onReset }: ReceiverPanelProps) {
     <div className="bg-surface rounded-lg border border-border p-6 shadow-sm flex flex-col gap-6 w-full h-full">
       <div className="flex items-center gap-2 border-b border-border pb-4">
         <div className="bg-success/10 p-2 rounded-md text-success">
-          <Cpu size={20} />
+          <img src="/receiver.png" alt="Receiver icon" width={28} height={28} className="object-contain" />
         </div>
         <h2 className="text-xl font-semibold text-text-primary">Receiver Panel</h2>
       </div>
@@ -95,30 +95,18 @@ export function ReceiverPanel({ codeword, poly, onReset }: ReceiverPanelProps) {
             </div>
           ) : (
             <div className="mt-4 flex flex-col gap-4 animate-in fade-in duration-300">
-              <div className={clsx(
-                "rounded-md p-4 flex items-start gap-3 border",
-                result.isValid ? "bg-success/5 border-success/30" : "bg-error/5 border-error/30"
-              )}>
-                <div className="mt-0.5">
-                  {result.isValid ? (
-                    <ShieldCheck className="text-success" size={24} />
-                  ) : (
-                    <ShieldAlert className="text-error" size={24} />
-                  )}
-                </div>
-                <div className="flex flex-col">
-                  <span className={clsx(
-                    "font-bold text-lg",
-                    result.isValid ? "text-success" : "text-error"
-                  )}>
-                    {result.isValid ? "Data Clean" : "Error Detected"}
-                  </span>
-                  <span className="text-sm text-text-secondary mt-1">
-                    {result.isValid 
-                      ? "The remainder is zero. Data is correct." 
-                      : "Non-zero remainder. Codeword corrupted."}
-                  </span>
-                </div>
+              <div className="rounded-md p-4 border border-border bg-background">
+                <p className={clsx(
+                  "font-semibold text-base",
+                  result.isValid ? "text-success" : "text-error"
+                )}>
+                  {result.isValid ? "Result: Data Clean" : "Result: Error Detected"}
+                </p>
+                <p className="text-sm text-text-secondary mt-1">
+                  {result.isValid 
+                    ? "The remainder is zero — no errors were detected in the received data." 
+                    : "The remainder is non-zero — the received codeword has been corrupted during transmission."}
+                </p>
               </div>
 
               <div className="flex flex-col gap-2 w-full mt-2">

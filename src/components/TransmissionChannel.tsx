@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { MousePointerClick, RadioTower } from 'lucide-react';
+import { MousePointerClick } from 'lucide-react';
 
 interface TransmissionChannelProps {
   codeword: string | null;
@@ -42,7 +42,7 @@ export function TransmissionChannel({ codeword, onTransmit }: TransmissionChanne
     <div className="bg-surface rounded-lg border border-border p-6 shadow-sm flex flex-col gap-6 w-full h-full">
       <div className="flex items-center gap-2 border-b border-border pb-4">
         <div className="bg-text-secondary/10 p-2 rounded-md text-text-secondary">
-          <RadioTower size={20} />
+          <img src="/transmission.png" alt="Transmission icon" width={28} height={28} className="object-contain" />
         </div>
         <h2 className="text-xl font-semibold text-text-primary">Transmission Channel</h2>
       </div>

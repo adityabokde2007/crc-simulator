@@ -4,7 +4,7 @@ import type { Step } from '../utils/crc';
 import { DivisionSteps } from './DivisionSteps';
 import { Modal } from './Modal';
 import { clsx } from 'clsx';
-import { Binary, ArrowRight, Calculator } from 'lucide-react';
+import { ArrowRight, Calculator } from 'lucide-react';
 
 interface EncoderPanelProps {
   onEncode: (data: string, poly: string, codeword: string) => void;
@@ -36,7 +36,7 @@ export function EncoderPanel({ onEncode }: EncoderPanelProps) {
     <div className="bg-surface rounded-lg border border-border p-6 shadow-sm flex flex-col gap-6 w-full h-full">
       <div className="flex items-center gap-2 border-b border-border pb-4">
         <div className="bg-accent/10 p-2 rounded-md text-accent">
-          <Binary size={20} />
+          <img src="/sender.png" alt="Sender icon" width={28} height={28} className="object-contain" />
         </div>
         <h2 className="text-xl font-semibold text-text-primary">Sender Panel</h2>
       </div>

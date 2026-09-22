@@ -4,7 +4,7 @@ import { TransmissionChannel } from './components/TransmissionChannel';
 import { ReceiverPanel } from './components/ReceiverPanel';
 import { HowItWorksPanel } from './components/HowItWorksPanel';
 import { Modal } from './components/Modal';
-import { Activity, ShieldCheck, Binary, Settings, Video } from 'lucide-react';
+
 
 function App() {
   const [session, setSession] = useState<{ codeword: string, poly: string } | null>(null);
@@ -34,9 +34,7 @@ function App() {
           <div className="flex items-center justify-between">
             {/* Left: Logo + Title */}
             <div className="flex items-center gap-3">
-              <div className="bg-accent text-white p-2 rounded-lg">
-                <Activity size={24} />
-              </div>
+              <img src="/website icon.png" alt="CRC Simulator logo" width={36} height={36} className="object-contain rounded-lg" />
               <div>
                 <h1 className="text-xl font-bold text-text-primary tracking-tight">CRC Simulator</h1>
                 <p className="text-xs text-text-secondary font-medium">Visualizing Cyclic Redundancy Check error detection</p>
@@ -50,8 +48,7 @@ function App() {
                 className="flex items-center gap-2 bg-accent text-white px-4 py-2 rounded-md hover:bg-accent/90 transition-colors font-medium text-sm h-9"
                 title="How It Works"
               >
-                <Video size={16} />
-                <span className="hidden sm:inline">How It Works</span>
+                How It Works
               </button>
             </div>
           </div>
@@ -95,31 +92,25 @@ function App() {
         </div>
 
         <div className="w-full max-w-4xl mx-auto mt-12 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-          <div className="bg-surface border border-border rounded-lg p-6 flex flex-col items-center text-center shadow-sm">
-            <div className="bg-success/10 p-3 rounded-full text-success mb-4">
-              <ShieldCheck size={28} />
-            </div>
-            <h3 className="font-semibold text-text-primary mb-2">Error Detection</h3>
+          <div className="bg-surface border border-border border-l-[3px] border-l-accent rounded-lg p-6 shadow-sm">
+            <span className="font-mono text-xs text-text-secondary/40 font-bold tracking-wide">01</span>
+            <h3 className="font-semibold text-text-primary mt-2 mb-2">Error Detection</h3>
             <p className="text-sm text-text-secondary leading-relaxed">
               CRC is highly effective at detecting single-bit, double-bit, and burst errors in data transmission.
             </p>
           </div>
-          
-          <div className="bg-surface border border-border rounded-lg p-6 flex flex-col items-center text-center shadow-sm">
-            <div className="bg-accent/10 p-3 rounded-full text-accent mb-4">
-              <Binary size={28} />
-            </div>
-            <h3 className="font-semibold text-text-primary mb-2">Binary Polynomials</h3>
+
+          <div className="bg-surface border border-border border-l-[3px] border-l-highlight rounded-lg p-6 shadow-sm">
+            <span className="font-mono text-xs text-text-secondary/40 font-bold tracking-wide">02</span>
+            <h3 className="font-semibold text-text-primary mt-2 mb-2">Binary Polynomials</h3>
             <p className="text-sm text-text-secondary leading-relaxed">
               It uses polynomial division in modulo-2 arithmetic, making it incredibly fast for computers to compute.
             </p>
           </div>
-          
-          <div className="bg-surface border border-border rounded-lg p-6 flex flex-col items-center text-center shadow-sm">
-            <div className="bg-highlight/10 p-3 rounded-full text-highlight mb-4">
-              <Settings size={28} />
-            </div>
-            <h3 className="font-semibold text-text-primary mb-2">Industry Standard</h3>
+
+          <div className="bg-surface border border-border border-l-[3px] border-l-success rounded-lg p-6 shadow-sm">
+            <span className="font-mono text-xs text-text-secondary/40 font-bold tracking-wide">03</span>
+            <h3 className="font-semibold text-text-primary mt-2 mb-2">Industry Standard</h3>
             <p className="text-sm text-text-secondary leading-relaxed">
               From Ethernet to USB to ZIP files, CRC is a ubiquitous standard across all digital networking.
             </p>
@@ -128,9 +119,10 @@ function App() {
       </main>
 
       <footer className="bg-surface border-t border-border py-6 mt-auto">
-        <div className="max-w-7xl mx-auto px-4 text-center">
-          <p className="text-sm text-text-secondary">
-            CRC Simulator
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col items-center gap-2.5">
+          <span className="text-sm font-semibold text-text-primary tracking-tight">CRC Simulator</span>
+          <p className="text-xs text-text-secondary/60 text-center max-w-md leading-relaxed">
+            An interactive tool for visualizing Cyclic Redundancy Check error detection — built for learning, one bit at a time.
           </p>
         </div>
       </footer>
