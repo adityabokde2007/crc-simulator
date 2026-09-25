@@ -1,3 +1,5 @@
+import videoUrl from '../assets/how_to_use.mp4';
+
 export function setupModal(modalId, closeBtnId, openBtnId = null) {
   const modal = document.getElementById(modalId);
   if (!modal) return null;
@@ -40,7 +42,7 @@ export function initVideoModal() {
         </div>
         <div class="modal-body" style="padding: 0; background: black; border-radius: 0 0 0.5rem 0.5rem;">
           <video id="how-to-use-video" controls class="w-full" style="max-height: 70vh; display: block;">
-            <source src="/assets/how_to_use.mp4" type="video/mp4">
+            <source src="${videoUrl}" type="video/mp4">
             Your browser does not support the video tag.
           </video>
         </div>
