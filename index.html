@@ -1,16 +1,119 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  
+  <link rel="stylesheet" href="/css/style.css">
+  
+  <title>CRC Simulator</title>
+</head>
+<body>
 
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-    <title>CRC Simulator</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
+  <header class="header">
+    <div class="header-content">
+      <a href="/" class="logo-link">
+        <img src="/assets/website icon.png" alt="CRC Simulator logo" width="36" height="36" style="border-radius: 0.5rem; object-fit: contain;">
+        <div>
+          <h1 class="text-xl font-bold text-text-primary" style="letter-spacing: -0.025em; margin-bottom: -0.1rem;">CRC Simulator</h1>
+          <p class="text-xs text-text-secondary font-medium" style="display: none;" id="header-subtitle">Visualizing Cyclic Redundancy Check error detection</p>
+          <style>@media (min-width: 640px) { #header-subtitle { display: block !important; } }</style>
+        </div>
+      </a>
+      
+      <div class="flex items-center gap-2">
+        <a href="/#how-it-works" class="btn-primary" style="text-decoration: none;">
+          How It Works
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <main class="flex-1 w-full mx-auto px-4 py-8 flex flex-col items-center max-w-7xl">
+    
+    <div class="w-full flex flex-col items-center justify-center gap-6 mb-8 text-center" style="min-height: 500px; max-width: 56rem;">
+      <h2 class="text-2xl font-bold text-text-primary mb-4" style="font-size: 1.875rem;">Choose Your Device Role</h2>
+      <p class="text-text-secondary mb-8" style="max-width: 32rem;">
+        This is a two-device simulation. Open this site on two different devices (or two browser windows). Choose "Sender" on one and "Receiver" on the other.
+      </p>
+
+      <div class="flex flex-col sm:flex-row gap-6 w-full max-w-3xl justify-center">
+        <a href="/sender.html" class="flex-1 bg-surface border-2 border-border p-8 flex flex-col items-center gap-4 rounded-xl" style="text-decoration: none; transition: all 0.2s;" onmouseover="this.style.borderColor='var(--color-accent)'; this.style.boxShadow='0 4px 6px -1px rgba(0, 0, 0, 0.1)'" onmouseout="this.style.borderColor='var(--color-border)'; this.style.boxShadow='none'">
+          <div class="bg-accent-10 p-4 rounded-full">
+            <img src="/assets/sender.png" alt="Sender" width="48" height="48" style="object-fit: contain; opacity: 0.8;">
+          </div>
+          <span class="text-xl font-bold text-text-primary">I'm the Sender</span>
+          <span class="text-sm text-text-secondary">Encode data and transmit across the network</span>
+        </a>
+
+        <a href="/receiver.html" class="flex-1 bg-surface border-2 border-border p-8 flex flex-col items-center gap-4 rounded-xl" style="text-decoration: none; transition: all 0.2s;" onmouseover="this.style.borderColor='var(--color-accent)'; this.style.boxShadow='0 4px 6px -1px rgba(0, 0, 0, 0.1)'" onmouseout="this.style.borderColor='var(--color-border)'; this.style.boxShadow='none'">
+          <div class="bg-accent-10 p-4 rounded-full">
+            <img src="/assets/receiver.png" alt="Receiver" width="48" height="48" style="object-fit: contain; opacity: 0.8;">
+          </div>
+          <span class="text-xl font-bold text-text-primary">I'm the Receiver</span>
+          <span class="text-sm text-text-secondary">Receive data and check for errors</span>
+        </a>
+      </div>
+    </div>
+
+    <!-- How it works accordion -->
+    <div id="how-it-works" class="w-full" style="max-width: 56rem;">
+      <div class="bg-surface rounded-lg border border-border overflow-hidden mt-8">
+        <button id="btn-toggle-info" class="w-full flex items-center justify-between p-4" style="background-color: rgba(245, 247, 250, 0.5);">
+          <div class="flex items-center gap-2">
+            <span class="font-semibold text-sm">What is CRC and how it works</span>
+          </div>
+          <svg id="icon-chevron" xmlns="http://www.w3.org/2000/svg" class="text-text-secondary" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>
+        </button>
+        
+        <div id="info-content" class="hidden overflow-hidden transition-all">
+          <div class="p-6 pt-2 text-text-secondary text-sm" style="line-height: 1.6; display: flex; flex-direction: column; gap: 0.75rem;">
+            <p>Cyclic Redundancy Check (CRC) is an error-detection technique used in data communication to detect whether data has been corrupted during transmission. It works by treating data as a binary number and performing modulo-2 division using a predefined binary polynomial called the generator polynomial.</p>
+            <p>At the sender's side, the original data is divided by the generator polynomial, and the remainder is appended to the data to create a codeword. At the receiver's side, the received codeword is divided by the same generator polynomial. If the remainder is zero, the data is assumed to be error-free; otherwise, an error is detected.</p>
+            <p>CRC is widely used in communication networks and storage systems because it provides reliable and efficient error detection.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Info Cards -->
+    <div class="w-full mt-8 grid gap-6" style="max-width: 56rem; display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));">
+      <div class="bg-surface border border-border rounded-lg p-6 shadow-sm" style="border-left: 3px solid var(--color-accent);">
+        <span class="font-mono text-xs font-bold" style="color: rgba(91, 100, 120, 0.4); letter-spacing: 0.05em;">01</span>
+        <h3 class="font-semibold text-text-primary mt-2 mb-2">Error Detection</h3>
+        <p class="text-sm text-text-secondary" style="line-height: 1.6;">CRC is highly effective at detecting single-bit, double-bit, and burst errors in data transmission.</p>
+      </div>
+
+      <div class="bg-surface border border-border rounded-lg p-6 shadow-sm" style="border-left: 3px solid var(--color-highlight);">
+        <span class="font-mono text-xs font-bold" style="color: rgba(91, 100, 120, 0.4); letter-spacing: 0.05em;">02</span>
+        <h3 class="font-semibold text-text-primary mt-2 mb-2">Binary Polynomials</h3>
+        <p class="text-sm text-text-secondary" style="line-height: 1.6;">It uses polynomial division in modulo-2 arithmetic, making it incredibly fast for computers to compute.</p>
+      </div>
+
+      <div class="bg-surface border border-border rounded-lg p-6 shadow-sm" style="border-left: 3px solid var(--color-success);">
+        <span class="font-mono text-xs font-bold" style="color: rgba(91, 100, 120, 0.4); letter-spacing: 0.05em;">03</span>
+        <h3 class="font-semibold text-text-primary mt-2 mb-2">Industry Standard</h3>
+        <p class="text-sm text-text-secondary" style="line-height: 1.6;">From Ethernet to USB to ZIP files, CRC is a ubiquitous standard across all digital networking.</p>
+      </div>
+    </div>
+
+  </main>
+
+  <footer class="bg-surface border-t border-border py-6" style="margin-top: auto;">
+    <div class="w-full max-w-7xl mx-auto px-4 flex flex-col items-center gap-2">
+      <span class="text-sm font-semibold text-text-primary">CRC Simulator</span>
+      <p class="text-xs text-text-secondary text-center" style="max-width: 28rem; line-height: 1.6; opacity: 0.8;">
+        An interactive tool for visualizing Cyclic Redundancy Check error detection — built for learning, one bit at a time.
+      </p>
+    </div>
+  </footer>
+
+
+
+  <script type="module" src="/js/landing.js"></script>
+</body>
 </html>

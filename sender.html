@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/style.css">
+  <title>CRC Simulator - Sender</title>
+</head>
+<body>
+
+  <header class="header">
+    <div class="header-content">
+      <a href="/" class="logo-link">
+        <img src="/assets/website icon.png" alt="CRC Simulator logo" width="36" height="36" style="border-radius: 0.5rem; object-fit: contain;">
+        <div>
+          <h1 class="text-xl font-bold text-text-primary" style="letter-spacing: -0.025em; margin-bottom: -0.1rem;">CRC Simulator</h1>
+          <p class="text-xs text-text-secondary font-medium" style="display: none;" id="header-subtitle">Visualizing Cyclic Redundancy Check error detection</p>
+          <style>@media (min-width: 640px) { #header-subtitle { display: block !important; } }</style>
+        </div>
+      </a>
+      
+      <div class="flex items-center gap-2">
+        <a href="/#how-it-works" class="btn-primary" style="text-decoration: none;">
+          How It Works
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <main class="flex-1 w-full max-w-3xl mx-auto px-4 py-8 flex flex-col gap-8">
+    <div class="text-center mb-2">
+      <h2 class="text-2xl font-bold text-text-primary">Sender Device</h2>
+      <p class="text-sm text-text-secondary">Encode your data and send it through the transmission channel.</p>
+    </div>
+
+    <!-- Simulated IP Display -->
+    <div class="bg-surface border border-accent-20 rounded-lg p-4 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm mb-2">
+      <div class="flex items-center gap-3">
+        <div class="bg-accent-10 p-2 rounded-md">
+          <img src="/assets/net.png" alt="Network" width="24" height="24" style="object-fit: contain;">
+        </div>
+        <div class="flex flex-col">
+          <span class="text-sm font-semibold text-text-primary">Your Device IP:</span>
+          <span class="text-xs text-text-secondary">This device's simulated network address</span>
+        </div>
+      </div>
+      <div id="ip-setup-container" class="flex gap-2 items-center flex-wrap">
+        <input type="text" id="input-my-ip" placeholder="e.g. 192.168.1.5" class="font-mono" style="width: 160px;">
+        <button id="btn-save-ip" class="btn-primary">Save IP</button>
+      </div>
+      <div id="ip-display-container" class="hidden flex gap-2 items-center bg-background border border-border px-3 py-1.5 rounded-md">
+        <span id="display-my-ip" class="font-mono text-lg font-bold text-text-primary" style="letter-spacing: 0.05em;"></span>
+        <button id="btn-edit-ip" class="text-xs text-text-secondary hover:text-text-primary ml-2 border border-border px-2 py-1 rounded">Edit</button>
+      </div>
+    </div>
+
+    <!-- Connection Panel -->
+    <div id="connection-panel-wrapper" class="opacity-50 pointer-events-none transition-opacity">
+      <div class="bg-surface border border-border rounded-lg p-6 shadow-sm mb-2">
+        <h3 class="font-semibold text-text-primary mb-4 flex items-center gap-2">
+          <img src="/assets/connection.png" alt="Connection" width="24" height="24" style="object-fit: contain;">
+          Establish Connection
+        </h3>
+      
+      <div id="conn-state-idle" class="flex flex-col sm:flex-row gap-3">
+        <input type="text" id="input-target-ip" placeholder="Enter receiver's IP address" class="flex-1">
+        <button id="btn-connect" class="btn-primary" style="padding-left: 1.5rem; padding-right: 1.5rem;" disabled>
+          Request Connection
+        </button>
+      </div>
+
+      <div id="conn-state-pending" class="hidden flex flex-col sm:flex-row items-center justify-between gap-4 bg-background p-4 rounded-md border border-border">
+        <div class="flex items-center gap-3 text-text-primary flex-1">
+          <svg class="animate-spin shrink-0" viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+          <span class="font-medium">Request sent to <span id="display-target-ip"></span>. Waiting...</span>
+        </div>
+        <button id="btn-cancel-request" class="btn-secondary w-full sm:w-auto">Cancel Request</button>
+      </div>
+
+      <div id="conn-state-accepted" class="hidden flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div class="flex items-center gap-3 text-text-primary bg-background p-4 rounded-md border border-border w-full sm:w-auto flex-1">
+          <span class="font-medium">Connected successfully to <span id="display-target-ip-accepted"></span></span>
+        </div>
+        <div class="flex gap-2 w-full sm:w-auto">
+          <button id="btn-new-transmission" class="btn-secondary flex-1 sm:flex-none">New Transmission</button>
+          <button id="btn-disconnect" class="btn-error flex-1 sm:flex-none">Disconnect</button>
+        </div>
+      </div>
+
+      <p id="conn-error-msg" class="text-error text-sm mt-2 hidden">Connection was rejected. Try again.</p>
+      </div>
+    </div>
+
+    <!-- Encoder Panel -->
+    <div id="encoder-panel" class="hidden bg-surface rounded-lg border border-border p-6 shadow-sm flex flex-col gap-6 w-full animate-fade-in">
+      <div class="flex items-center gap-2 border-b border-border pb-4">
+        <div class="bg-accent-10 p-2 rounded-md text-accent">
+          <img src="/assets/sender.png" alt="Sender icon" width="28" height="28" style="object-fit: contain;">
+        </div>
+        <h2 class="text-xl font-semibold text-text-primary">Sender Panel</h2>
+      </div>
+
+      <div class="flex flex-col gap-4">
+        <div class="flex flex-col gap-1.5">
+          <label class="text-sm font-medium text-text-primary">Data to Transmit (Binary)</label>
+          <input type="text" id="input-data" placeholder="Enter your binary data" class="font-mono">
+          <span id="error-data" class="text-xs text-error hidden">Only 0 and 1 characters allowed.</span>
+        </div>
+
+        <div class="flex flex-col gap-1.5">
+          <label class="text-sm font-medium text-text-primary">Generator Polynomial</label>
+          <input type="text" id="input-poly" placeholder="Enter as binary (100000111) or polynomial (x^8+x^2+x+1)" class="font-mono">
+          <span id="error-poly" class="text-xs text-error mt-1 hidden">Please enter a valid binary string or polynomial expression</span>
+        </div>
+
+        <button id="btn-encode" class="btn-primary mt-2 py-3 w-full justify-center" disabled>
+          <span>Encode Data</span>
+          <svg viewBox="0 0 24 24"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+        </button>
+
+        <!-- Detailed Calculation Panel (Always visible once encoded) -->
+        <div id="calculation-panel" class="hidden mt-6 pt-6 border-t border-border flex flex-col gap-6 animate-fade-in">
+          <div class="flex items-center gap-2 pb-2">
+            <div class="bg-accent-10 p-2 rounded-md text-text-primary">
+              <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" stroke-width="2" fill="none"><rect width="16" height="20" x="4" y="2" rx="2"/><line x1="8" x2="16" y1="6" y2="6"/><line x1="16" x2="16" y1="14" y2="18"/><path d="M16 10h.01"/><path d="M12 10h.01"/><path d="M8 10h.01"/><path d="M12 14h.01"/><path d="M8 14h.01"/><path d="M12 18h.01"/><path d="M8 18h.01"/></svg>
+            </div>
+            <h2 class="text-xl font-semibold text-text-primary">Step-by-Step CRC Calculation</h2>
+          </div>
+          <div id="calc-steps-container" class="w-full flex flex-col">
+            <!-- Steps generated via JS -->
+          </div>
+        </div>
+
+        <!-- Transmit Section (Visible once encoded) -->
+        <div id="transmit-section" class="hidden mt-6 pt-6 border-t border-border flex flex-col gap-4 animate-fade-in">
+          <button id="btn-transmit" class="btn-dark w-full py-3 justify-center relative overflow-hidden transition-all duration-300">
+            <div id="transmit-content-default" class="flex items-center gap-2">
+              <svg viewBox="0 0 24 24"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>
+              <span>Transmit to Receiver</span>
+            </div>
+            <div id="transmit-content-loading" class="hidden flex items-center gap-2">
+              <svg class="animate-spin" viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+              <span>Transmitting through channel...</span>
+            </div>
+          </button>
+        </div>
+
+      </div>
+    </div>
+  </main>
+
+  <script type="module" src="/js/sender.js"></script>
+</body>
+</html>
