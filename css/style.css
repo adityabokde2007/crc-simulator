@@ -156,6 +156,7 @@ input[type="text"], input[type="number"] {
   color: var(--color-text-primary);
   background-color: var(--color-surface);
   transition: all 0.2s;
+  touch-action: manipulation;
 }
 
 input::placeholder {
@@ -193,6 +194,7 @@ button, [class*="btn-"] {
   box-sizing: border-box;
   text-decoration: none;
   box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  touch-action: manipulation;
 }
 
 button:disabled, [class*="btn-"]:disabled {
@@ -204,17 +206,11 @@ button:disabled, [class*="btn-"]:disabled {
   background-color: var(--color-text-primary);
   color: white;
 }
-.btn-primary:hover:not(:disabled) {
-  background-color: rgba(28, 35, 51, 0.9);
-}
 
 .btn-secondary {
   background-color: var(--color-surface);
   border: 1px solid var(--color-border);
   color: var(--color-text-primary);
-}
-.btn-secondary:hover:not(:disabled) {
-  background-color: var(--color-background);
 }
 
 .btn-error {
@@ -222,25 +218,35 @@ button:disabled, [class*="btn-"]:disabled {
   border: 1px solid var(--color-border);
   color: var(--color-text-primary);
 }
-.btn-error:hover:not(:disabled) {
-  background-color: var(--color-background);
-}
 
 .btn-success {
   background-color: var(--color-surface);
   border: 1px solid var(--color-border);
   color: var(--color-text-primary);
 }
-.btn-success:hover:not(:disabled) {
-  background-color: var(--color-background);
-}
 
 .btn-dark {
   background-color: var(--color-text-primary);
   color: white;
 }
-.btn-dark:hover:not(:disabled) {
-  background-color: rgba(28, 35, 51, 0.9);
+
+@media (hover: hover) {
+  .btn-primary:hover:not(:disabled) {
+    background-color: rgba(28, 35, 51, 0.9);
+  }
+  .btn-secondary:hover:not(:disabled) {
+    background-color: var(--color-background);
+  }
+  .btn-error:hover:not(:disabled) {
+    background-color: var(--color-background);
+  }
+  .btn-success:hover:not(:disabled) {
+    background-color: var(--color-background);
+  }
+  .btn-dark:hover:not(:disabled) {
+    background-color: rgba(28, 35, 51, 0.9);
+  }
+  .logo-link:hover { opacity: 0.9; }
 }
 
 /* Animations */
@@ -350,7 +356,6 @@ button:disabled, [class*="btn-"]:disabled {
   text-decoration: none;
   color: var(--color-text-primary);
 }
-.logo-link:hover { opacity: 0.9; }
 
 /* SVG Icons */
 svg {
