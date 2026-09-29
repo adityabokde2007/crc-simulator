@@ -1,9 +1,12 @@
 import { db } from './firebase-config.js';
 import { ref, set, onValue } from 'firebase/database';
-import { verifyCRC } from './crc.js';
 import { generateReceiverReport } from './pdf-report.js';
 import { setupModal, initVideoModal } from './modal.js';
 import { showToast } from './toast.js';
+
+// Base URL for the Python Flask backend API
+// In development (localhost) it uses port 5000, in production it uses the Render URL
+const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:5000';
 
 document.addEventListener('DOMContentLoaded', () => {
   initVideoModal();
@@ -181,7 +184,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // --- Transmission Rendering ---
-  const renderTransmission = () => {
+  const renderTransmission = async () => {
     if (!receivedCodeword) {
       resetReceiverUI();
       return;
@@ -193,8 +196,20 @@ document.addEventListener('DOMContentLoaded', () => {
     btnVerify.disabled = false;
     btnVerify.classList.remove('hidden');
 
-    // Pre-compute CRC to display calculation steps
-    verifyResult = verifyCRC(receivedCodeword, receivedPoly);
+    // Call Python backend to verify CRC
+    try {
+      const resp = await fetch(`${API_BASE}/api/verify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ codeword: receivedCodeword, poly: receivedPoly })
+      });
+      verifyResult = await resp.json();
+    } catch (err) {
+      console.error('Verify error:', err);
+      showToast('Error connecting to Python backend. Is Flask running?', 'error');
+      return;
+    }
+
     renderCalculationSteps();
     calculationPanel.classList.remove('hidden');
 

@@ -7,10 +7,16 @@ dist/
 dist-ssr/
 build/
 
-# Environment variables
+# Environment variables (contains Firebase secrets)
 .env
 .env.local
 .env.*.local
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
 
 # Editor/IDE files
 .vscode/*

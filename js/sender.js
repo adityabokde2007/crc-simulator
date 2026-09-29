@@ -1,9 +1,11 @@
 import { db } from './firebase-config.js';
 import { ref, set, onValue } from 'firebase/database';
-import { encodeCRC, parsePolynomialInput } from './crc.js';
-import { simulateChannelTransmission } from './network.js';
 import { setupModal, initVideoModal } from './modal.js';
 import { showToast } from './toast.js';
+
+// Base URL for the Python Flask backend API
+// In development (localhost) it uses port 5000, in production it uses the Render URL
+const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:5000';
 
 document.addEventListener('DOMContentLoaded', () => {
   initVideoModal();
@@ -233,6 +235,10 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // --- Encoder Logic ---
+  // Cache for parsed polynomial so we don't call API on every keystroke unnecessarily
+  let lastParsedPoly = null;
+  let lastPolyInput = '';
+
   const validateInputs = () => {
     const data = inputData.value.replace(/[^01]/g, '');
     if (inputData.value !== data) {
@@ -240,7 +246,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     const polyStr = inputPoly.value;
-    const parsedPoly = parsePolynomialInput(polyStr);
+    const parsedPoly = lastPolyInput === polyStr ? lastParsedPoly : null;
 
     const isDataValid = /^[01]+$/.test(data);
     const isPolyValid = parsedPoly !== null && parsedPoly.length > 1;
@@ -255,8 +261,38 @@ document.addEventListener('DOMContentLoaded', () => {
     return { isDataValid, isPolyValid, data, parsedPoly };
   };
 
+  // Call Python backend to parse polynomial whenever user types
+  const parsePolyFromBackend = async () => {
+    const polyStr = inputPoly.value.trim();
+    if (!polyStr) {
+      lastParsedPoly = null;
+      lastPolyInput = '';
+      validateInputs();
+      return;
+    }
+    try {
+      const resp = await fetch(`${API_BASE}/api/parse-poly`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ input: polyStr })
+      });
+      const result = await resp.json();
+      lastParsedPoly = result.binary;
+      lastPolyInput = inputPoly.value;
+    } catch (err) {
+      console.error('Error parsing polynomial:', err);
+      lastParsedPoly = null;
+      lastPolyInput = inputPoly.value;
+    }
+    validateInputs();
+  };
+
   inputData.addEventListener('input', validateInputs);
-  inputPoly.addEventListener('input', validateInputs);
+  inputPoly.addEventListener('input', () => {
+    // Debounce the API call slightly
+    clearTimeout(inputPoly._debounce);
+    inputPoly._debounce = setTimeout(parsePolyFromBackend, 300);
+  });
 
   const resetEncoder = () => {
     inputData.value = '';
@@ -267,23 +303,44 @@ document.addEventListener('DOMContentLoaded', () => {
     validateInputs();
   };
 
-  btnEncode.addEventListener('click', () => {
+  btnEncode.addEventListener('click', async () => {
     const { isDataValid, isPolyValid, data, parsedPoly } = validateInputs();
     if (!isDataValid || !isPolyValid) return;
 
-    const res = encodeCRC(data, parsedPoly);
-    currentSession = {
-      originalData: data,
-      poly: parsedPoly,
-      ...res
-    };
-    
-    currentCodeword = res.codeword;
+    try {
+      btnEncode.disabled = true;
+      // Call Python backend to encode CRC
+      const resp = await fetch(`${API_BASE}/api/encode`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ data: data, poly: parsedPoly })
+      });
+      const res = await resp.json();
 
-    renderCalculationSteps();
-    transmitSection.classList.remove('hidden');
-    calculationPanel.classList.remove('hidden');
-    showToast('Data encoded successfully', 'success');
+      if (res.error) {
+        showToast(res.error, 'error');
+        btnEncode.disabled = false;
+        return;
+      }
+
+      currentSession = {
+        originalData: data,
+        poly: parsedPoly,
+        ...res
+      };
+      
+      currentCodeword = res.codeword;
+
+      renderCalculationSteps();
+      transmitSection.classList.remove('hidden');
+      calculationPanel.classList.remove('hidden');
+      showToast('Data encoded successfully (via Python backend)', 'success');
+    } catch (err) {
+      console.error('Encode error:', err);
+      showToast('Error connecting to Python backend. Is Flask running?', 'error');
+    } finally {
+      btnEncode.disabled = false;
+    }
   });
 
   btnTransmit.addEventListener('click', async () => {
@@ -297,7 +354,14 @@ document.addEventListener('DOMContentLoaded', () => {
       // Simulate channel delay
       await new Promise(resolve => setTimeout(resolve, 1200));
 
-      const finalCodeword = simulateChannelTransmission(currentCodeword);
+      // Call Python backend to simulate channel noise
+      const channelResp = await fetch(`${API_BASE}/api/simulate-channel`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ codeword: currentCodeword })
+      });
+      const channelResult = await channelResp.json();
+      const finalCodeword = channelResult.codeword;
 
       const transmissionRef = ref(db, `connections/${targetIP.replace(/\./g, '_')}/transmission`);
       await set(transmissionRef, {
