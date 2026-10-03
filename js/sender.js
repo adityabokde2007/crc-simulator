@@ -633,5 +633,11 @@ document.addEventListener('DOMContentLoaded', () => {
     errorData.classList.add('hidden');
     hideAckStatus();
     stopAckListener();
+    
+    // Reset channel animation
+    const channelContainer = document.getElementById('channel-animation-container');
+    const movingFrame = document.getElementById('sender-moving-frame');
+    if (channelContainer) channelContainer.classList.add('hidden');
+    if (movingFrame) movingFrame.classList.remove('animate-send');
   }
 });
