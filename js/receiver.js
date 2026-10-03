@@ -1,17 +1,14 @@
 import { db } from './firebase-config.js';
 import { ref, set, onValue } from 'firebase/database';
-import { generateReceiverReport } from './pdf-report.js';
-import { setupModal, initVideoModal } from './modal.js';
 import { showToast } from './toast.js';
 
-// Base URL for the Python Flask backend API
-// In development (localhost) it uses port 5000, in production it uses the Render URL
 const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:5000';
 
 document.addEventListener('DOMContentLoaded', () => {
-  initVideoModal();
+
   let myIP = sessionStorage.getItem('crc_my_ip') || '';
 
+  // ─── DOM refs ──────────────────────────────────────────────────────
   const ipSetupContainer = document.getElementById('ip-setup-container');
   const ipDisplayContainer = document.getElementById('ip-display-container');
   const inputMyIp = document.getElementById('input-my-ip');
@@ -20,7 +17,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnEditIp = document.getElementById('btn-edit-ip');
   const connectionPanelWrapper = document.getElementById('connection-panel-wrapper');
 
-  // DOM Elements - Connection
   const connRequestAlert = document.getElementById('conn-request-alert');
   const connStatusAccepted = document.getElementById('conn-status-accepted');
   const connStatusWaiting = document.getElementById('conn-status-waiting');
@@ -30,31 +26,33 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnReject = document.getElementById('btn-reject');
   const btnDisconnect = document.getElementById('btn-disconnect');
   
-  // DOM Elements - Receiver Panel
   const receiverPanel = document.getElementById('receiver-panel');
   const rxWaitingData = document.getElementById('rx-waiting-data');
   const rxDataView = document.getElementById('rx-data-view');
-  const rxBitCells = document.getElementById('rx-bit-cells');
+  const rxRawBitstream = document.getElementById('rx-raw-bitstream');
   const btnVerify = document.getElementById('btn-verify');
-  const verificationResult = document.getElementById('verification-result');
+  
+  const rxLayersContainer = document.getElementById('rx-layers-container');
+  const rxCalcStepsContainer = document.getElementById('rx-calc-steps-container');
+  const rxCrcDivisionOuter = document.getElementById('rx-crc-division-outer');
+  const rxCrcDivisionScroll = document.getElementById('rx-crc-division-scroll');
+  const rxCrcToggleBtn = document.getElementById('rx-crc-toggle-btn');
+  const rxCrcToggleText = document.getElementById('rx-crc-toggle-text');
+  
   const resultPassed = document.getElementById('result-passed');
   const resultFailed = document.getElementById('result-failed');
-  const btnRxSeeCalc = document.getElementById('btn-rx-see-calc');
-  const btnDownloadPdf = document.getElementById('btn-download-pdf');
-  const calcStepsContainer = document.getElementById('calc-steps-container');
+  const decodedMessageBox = document.getElementById('decoded-message-box');
+  const garbledMessageBox = document.getElementById('garbled-message-box');
 
-  // State
   let connectionRequest = null;
-  let receivedCodeword = null;
-  let receivedPoly = null;
-  let verifyResult = null;
-
-  // Panels
-  const calculationPanel = document.getElementById('calculation-panel');
-
+  let receivedTransmission = null;
   let isFirstLoad = true;
+  let receiverTimeoutTimer = null;
 
-  // --- IP & Connection Listeners ---
+  // ═══════════════════════════════════════════════════════════════════
+  //  CONNECTION LOGIC
+  // ═══════════════════════════════════════════════════════════════════
+
   const renderMyIPState = () => {
     if (myIP) {
       ipSetupContainer.classList.add('hidden');
@@ -71,15 +69,20 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   };
 
-  btnSaveIp.addEventListener('click', () => {
+  btnSaveIp.addEventListener('click', async () => {
     const ip = inputMyIp.value.trim();
     if (/^(\d{1,3}\.){3}\d{1,3}$/.test(ip)) {
       myIP = ip;
       sessionStorage.setItem('crc_my_ip', myIP);
+      
+      // Clear any old stale data for this IP to prevent auto-connect
+      const ipNode = myIP.replace(/\./g, '_');
+      await set(ref(db, `connections/${ipNode}`), null).catch(() => {});
+      
       renderMyIPState();
       showToast('IP address saved', 'success');
     } else {
-      showToast('Invalid IP format. e.g. 192.168.1.5', 'error');
+      showToast('Invalid IP format. e.g. 192.168.1.10', 'error');
     }
   });
 
@@ -96,13 +99,6 @@ document.addEventListener('DOMContentLoaded', () => {
     requestRef = ref(db, `connections/${myIP.replace(/\./g, '_')}/request`);
     transmissionRef = ref(db, `connections/${myIP.replace(/\./g, '_')}/transmission`);
 
-    // On page reload, start from a completely clean slate by clearing Firebase for this IP
-    if (isFirstLoad) {
-      set(requestRef, null).catch(()=>{});
-      set(transmissionRef, null).catch(()=>{});
-      isFirstLoad = false;
-    }
-
     onValue(requestRef, (snapshot) => {
       const newData = snapshot.val();
       if (!connectionRequest && newData && newData.status === 'pending') {
@@ -118,12 +114,11 @@ document.addEventListener('DOMContentLoaded', () => {
     onValue(transmissionRef, (snapshot) => {
       const data = snapshot.val();
       if (data && connectionRequest?.status === 'accepted') {
-        if (!receivedCodeword) {
-          showToast('Data received from sender', 'success');
+        if (!receivedTransmission || receivedTransmission.timestamp !== data.timestamp) {
+          receivedTransmission = data;
+          showToast('Frame received!', 'success');
+          renderInitialTransmission();
         }
-        receivedCodeword = data.codeword;
-        receivedPoly = data.poly;
-        renderTransmission();
       } else {
         resetReceiverUI();
       }
@@ -153,22 +148,14 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   btnAccept.addEventListener('click', async () => {
-    await set(requestRef, {
-      ...connectionRequest,
-      status: 'accepted'
-    });
+    await set(requestRef, { ...connectionRequest, status: 'accepted' });
     showToast(`Connection accepted from ${connectionRequest.fromIP}`, 'success');
   });
 
   btnReject.addEventListener('click', async () => {
-    await set(requestRef, {
-      ...connectionRequest,
-      status: 'rejected'
-    });
+    await set(requestRef, { ...connectionRequest, status: 'rejected' });
     showToast(`Connection rejected from ${connectionRequest.fromIP}`, 'warning');
-    setTimeout(async () => {
-      await set(requestRef, null);
-    }, 3000);
+    setTimeout(async () => { await set(requestRef, null); }, 3000);
   });
 
   if (btnDisconnect) {
@@ -177,170 +164,310 @@ document.addEventListener('DOMContentLoaded', () => {
         if (requestRef) await set(requestRef, null);
         if (transmissionRef) await set(transmissionRef, null);
         showToast('Disconnected from sender', 'warning');
-      } catch (err) {
-        console.error(err);
-      }
+      } catch (err) { console.error(err); }
     });
   }
 
-  // --- Transmission Rendering ---
-  const renderTransmission = async () => {
-    if (!receivedCodeword) {
-      resetReceiverUI();
-      return;
+  function resetReceiverUI() {
+    receivedTransmission = null;
+    rxDataView.classList.add('hidden');
+    rxLayersContainer.classList.add('hidden');
+    rxWaitingData.classList.remove('hidden');
+    btnVerify.classList.remove('hidden');
+    btnVerify.disabled = false;
+    const rxChannelAnim = document.getElementById('rx-channel-animation-container');
+    if (rxChannelAnim) rxChannelAnim.classList.add('hidden');
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  //  RECEIVER DATA LOGIC
+  // ═══════════════════════════════════════════════════════════════════
+
+  const renderInitialTransmission = async () => {
+    rxWaitingData.classList.add('hidden');
+    rxDataView.classList.add('hidden');
+    btnVerify.classList.add('hidden'); // Hide verify button - auto verify
+    rxLayersContainer.classList.add('hidden');
+
+    // Reset ACK/NACK button states
+    const btnSendAck = document.getElementById('btn-send-ack');
+    const btnSendNack = document.getElementById('btn-send-nack');
+    const ackSentStatus = document.getElementById('ack-sent-status');
+    const nackSentStatus = document.getElementById('nack-sent-status');
+    if (btnSendAck) { btnSendAck.disabled = false; btnSendAck.style.opacity = '1'; btnSendAck.textContent = "Send ACK to Sender"; }
+    if (btnSendNack) { btnSendNack.disabled = false; btnSendNack.style.opacity = '1'; btnSendNack.textContent = "Send NACK — Request Retransmission"; }
+    if (ackSentStatus) ackSentStatus.classList.add('hidden');
+    if (nackSentStatus) nackSentStatus.classList.add('hidden');
+
+    // Handle Receiver Timeout (matches Sender's 60s timeout)
+    if (receiverTimeoutTimer) clearTimeout(receiverTimeoutTimer);
+    receiverTimeoutTimer = setTimeout(() => {
+      if (btnSendAck && !btnSendAck.disabled) {
+        btnSendAck.disabled = true;
+        btnSendAck.style.opacity = '0.5';
+        btnSendAck.textContent = "Timeout (Sender Stopped)";
+      }
+      if (btnSendNack && !btnSendNack.disabled) {
+        btnSendNack.disabled = true;
+        btnSendNack.style.opacity = '0.5';
+        btnSendNack.textContent = "Timeout (Sender Stopped)";
+      }
+      showToast('Session timeout — Sender is no longer listening', 'warning');
+    }, 60000);
+
+    // Play incoming frame channel animation
+    const rxChannelContainer = document.getElementById('rx-channel-animation-container');
+    const rxMovingFrame = document.getElementById('rx-moving-frame');
+
+    if (rxChannelContainer && rxMovingFrame) {
+      rxChannelContainer.classList.remove('hidden');
+      rxMovingFrame.classList.remove('animate-receive');
+      void rxMovingFrame.offsetWidth;
+      rxMovingFrame.classList.add('animate-receive');
+
+      const rxMovingPayload = document.getElementById('rx-moving-payload');
+      if (receivedTransmission.wasCorrupted && rxMovingPayload) {
+        rxMovingPayload.classList.add('moving-corrupted');
+      } else if (rxMovingPayload) {
+        rxMovingPayload.classList.remove('moving-corrupted');
+      }
+
+      await new Promise(resolve => setTimeout(resolve, 2800));
+    }
+
+    // Now show the data view
+    rxDataView.classList.remove('hidden');
+    
+    const codeword = receivedTransmission.codeword;
+    let bitStreamHtml = escapeHtml(codeword);
+
+    if (receivedTransmission.wasCorrupted && receivedTransmission.flippedIndex !== undefined) {
+      const idx = receivedTransmission.flippedIndex;
+      bitStreamHtml = escapeHtml(codeword.substring(0, idx)) + 
+                      `<span class="text-error font-bold" style="background:rgba(196,89,63,0.12);padding:0 1px;border-radius:2px;">${escapeHtml(codeword[idx])}</span>` + 
+                      escapeHtml(codeword.substring(idx + 1));
     }
     
-    rxWaitingData.classList.add('hidden');
-    rxDataView.classList.remove('hidden');
-    verificationResult.classList.add('hidden');
-    btnVerify.disabled = false;
-    btnVerify.classList.remove('hidden');
+    rxRawBitstream.innerHTML = bitStreamHtml;
 
-    // Call Python backend to verify CRC
+    // Set bits info (Header is always 96 bits)
+    const generatorLen = receivedTransmission.generator ? receivedTransmission.generator.length : 17; // default CRC-16 is 17 bits
+    const crcLen = generatorLen - 1;
+    const payloadLen = codeword.length - 96 - crcLen;
+    const crcTrailerBits = codeword.slice(-crcLen);
+
+    const rxDisplayPayload = document.getElementById('rx-display-payload-len');
+    const rxDisplayCrc = document.getElementById('rx-display-final-crc');
+    if (rxDisplayPayload) rxDisplayPayload.textContent = `${payloadLen} bits`;
+    if (rxDisplayCrc) rxDisplayCrc.textContent = crcTrailerBits;
+
+    // AUTO-VERIFY: Automatically run CRC verification
+    await autoVerify();
+  };
+
+  async function autoVerify() {
+    if (!receivedTransmission) return;
+
     try {
       const resp = await fetch(`${API_BASE}/api/verify`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ codeword: receivedCodeword, poly: receivedPoly })
+        body: JSON.stringify({ codeword: receivedTransmission.codeword })
       });
-      verifyResult = await resp.json();
+      const result = await resp.json();
+      
+      if (result.error) {
+        showToast(result.error, 'error');
+        return;
+      }
+      
+      renderVerificationProcess(result);
+
     } catch (err) {
       console.error('Verify error:', err);
-      showToast('Error connecting to Python backend. Is Flask running?', 'error');
-      return;
+      showToast('Error connecting to backend.', 'error');
+    }
+  }
+
+  btnVerify.addEventListener('click', async () => {
+    if (!receivedTransmission) return;
+    
+    btnVerify.disabled = true;
+    btnVerify.innerHTML = '<svg class="animate-spin" viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg> Verifying...';
+
+    try {
+      const resp = await fetch(`${API_BASE}/api/verify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ codeword: receivedTransmission.codeword })
+      });
+      const result = await resp.json();
+      
+      if (result.error) {
+        showToast(result.error, 'error');
+        resetVerifyBtn();
+        return;
+      }
+      
+      btnVerify.classList.add('hidden');
+      renderVerificationProcess(result);
+
+    } catch (err) {
+      console.error('Verify error:', err);
+      showToast('Error connecting to backend.', 'error');
+      resetVerifyBtn();
+    }
+  });
+
+  function resetVerifyBtn() {
+    btnVerify.disabled = false;
+    btnVerify.innerHTML = '<span>Verify CRC Integrity</span><svg viewBox="0 0 24 24"><path d="m9 12 2 2 4-4"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/><path d="M5 12V7a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v5"/></svg>';
+  }
+
+  function renderVerificationProcess(result) {
+    rxLayersContainer.classList.remove('hidden');
+
+    // ── CRC Long Division (monospace <pre>) ──
+    const poly = '10001000000100001';
+    const codeword = receivedTransmission.codeword;
+    const steps = result.crcSteps;
+    const totalWidth = codeword.length;
+
+    let lines = [];
+    
+    // Dividend line
+    lines.push({ text: codeword.padEnd(totalWidth), type: 'dividend' });
+
+    steps.forEach((step, idx) => {
+      const offset = step.padding.length;
+      const divisorLine = ' '.repeat(offset) + step.divisor;
+      lines.push({ text: divisorLine.padEnd(totalWidth), type: 'divisor', offset, len: step.divisor.length });
+
+      const resultBits = step.xorResult.substring(1);
+      if (idx === steps.length - 1) {
+        const remLine = ' '.repeat(offset + 1) + resultBits;
+        lines.push({ text: remLine.padEnd(totalWidth), type: result.isValid ? 'remainder-valid' : 'remainder-error' });
+      } else {
+        let nextBit = '';
+        const nextPos = offset + step.divisor.length;
+        if (nextPos < codeword.length) {
+          nextBit = codeword[nextPos];
+        }
+        const interLine = ' '.repeat(offset + 1) + resultBits + nextBit;
+        lines.push({ text: interLine.padEnd(totalWidth), type: 'intermediate' });
+      }
+    });
+
+    let html = '';
+    lines.forEach((line) => {
+      if (line.type === 'dividend') {
+        html += `<span class="crc-dividend-line">${escapeHtml(line.text)}</span>\n`;
+      } else if (line.type === 'divisor') {
+        const before = escapeHtml(line.text.substring(0, line.offset));
+        const divisorText = escapeHtml(line.text.substring(line.offset, line.offset + line.len));
+        const after = escapeHtml(line.text.substring(line.offset + line.len));
+        html += `${before}<span class="crc-divisor-line crc-separator">${divisorText}</span>${after}\n`;
+      } else if (line.type === 'remainder-valid') {
+        const trimmed = line.text;
+        const leadingSpaces = trimmed.length - trimmed.trimStart().length;
+        const remText = trimmed.trimStart().trimEnd();
+        html += `${' '.repeat(leadingSpaces)}<span class="crc-remainder-line">${escapeHtml(remText)}</span>\n`;
+      } else if (line.type === 'remainder-error') {
+        const trimmed = line.text;
+        const leadingSpaces = trimmed.length - trimmed.trimStart().length;
+        const remText = trimmed.trimStart().trimEnd();
+        html += `${' '.repeat(leadingSpaces)}<span class="crc-remainder-error">${escapeHtml(remText)}</span>\n`;
+      } else {
+        html += `<span class="crc-dividend-line">${escapeHtml(line.text)}</span>\n`;
+      }
+    });
+
+    rxCalcStepsContainer.innerHTML = html;
+
+    // Handle expand/collapse
+    if (steps.length > 8) {
+      rxCrcToggleBtn.classList.remove('hidden');
+      rxCrcToggleBtn.classList.remove('is-expanded');
+      rxCrcToggleText.textContent = 'Show full calculation';
+      rxCrcDivisionScroll.classList.remove('expanded');
+
+      rxCrcToggleBtn.onclick = () => {
+        const wasExpanded = rxCrcDivisionScroll.classList.toggle('expanded');
+        if (wasExpanded) {
+          rxCrcToggleBtn.classList.add('is-expanded');
+          rxCrcToggleText.textContent = 'Collapse calculation';
+        } else {
+          rxCrcToggleBtn.classList.remove('is-expanded');
+          rxCrcToggleText.textContent = 'Show full calculation';
+        }
+      };
+    } else {
+      rxCrcToggleBtn.classList.add('hidden');
+      rxCrcDivisionScroll.classList.add('expanded');
     }
 
-    renderCalculationSteps();
-    calculationPanel.classList.remove('hidden');
+    // Setup scroll fade indicators
+    setupScrollFade(rxCrcDivisionOuter, rxCrcDivisionScroll);
 
-    rxBitCells.innerHTML = '';
-    receivedCodeword.split('').forEach((bit, idx) => {
-      const container = document.createElement('div');
-      container.className = 'flex flex-col items-center gap-0.5';
-      
-      const label = document.createElement('span');
-      label.className = 'text-[11px] sm:text-[13px] leading-none text-text-primary font-bold font-mono select-none';
-      label.textContent = idx;
-      
-      const cell = document.createElement('div');
-      cell.className = 'bit-cell';
-      cell.textContent = bit;
-      
-      container.appendChild(label);
-      container.appendChild(cell);
-      rxBitCells.appendChild(container);
-    });
-  };
-
-  btnVerify.addEventListener('click', () => {
-    if (!verifyResult) return;
-    
-    btnVerify.classList.add('hidden');
-    verificationResult.classList.remove('hidden');
-    
+    // ── Result ──
     resultPassed.classList.add('hidden');
     resultFailed.classList.add('hidden');
-    
-    if (verifyResult.isValid) {
+
+    if (result.isValid) {
       resultPassed.classList.remove('hidden');
-      showToast('Data integrity verified successfully', 'success');
+      decodedMessageBox.textContent = result.decodedText;
     } else {
       resultFailed.classList.remove('hidden');
-      showToast('Data corruption detected', 'error');
+      garbledMessageBox.textContent = result.decodedText;
     }
-  });
+  }
 
-  btnDownloadPdf.addEventListener('click', () => {
-    if (!verifyResult || !connectionRequest) return;
-    generateReceiverReport(receivedCodeword, receivedPoly, myIP, connectionRequest.fromIP, verifyResult);
-  });
-
-  function resetReceiverUI() {
-    receivedCodeword = null;
-    receivedPoly = null;
-    verifyResult = null;
-    
-    // Completely clear DOM
-    rxBitCells.innerHTML = '';
-    calcStepsContainer.innerHTML = '';
-    
-    // Hide panels
-    rxDataView.classList.add('hidden');
-    calculationPanel.classList.add('hidden');
-    verificationResult.classList.add('hidden');
-    
-    // Show waiting state
-    rxWaitingData.classList.remove('hidden');
-  };
-
-  // --- Calculation Steps ---
-  const renderCalculationSteps = () => {
-    if (!verifyResult) return;
-    calcStepsContainer.innerHTML = '';
-    
-    const polyStr = receivedPoly;
-    const codeword = receivedCodeword;
-    
-    const createStep = (stepNum, title, desc, contentHtml) => {
-      return `
-        <div class="mb-8 last:mb-0">
-          <h4 class="text-lg font-bold text-text-primary mb-1">Step ${stepNum}: ${title}</h4>
-          <p class="text-sm text-text-secondary mb-3">${desc}</p>
-          <div class="bg-background p-4 rounded-md border border-border font-mono text-sm overflow-x-auto">
-            ${contentHtml}
-          </div>
-        </div>
-      `;
+  function setupScrollFade(outer, scrollEl) {
+    const updateFade = () => {
+      const sl = scrollEl.scrollLeft;
+      const maxScroll = scrollEl.scrollWidth - scrollEl.clientWidth;
+      outer.classList.toggle('has-scroll-left', sl > 4);
+      outer.classList.toggle('has-scroll-right', sl < maxScroll - 4);
     };
+    scrollEl.addEventListener('scroll', updateFade);
+    requestAnimationFrame(updateFade);
+    window.addEventListener('resize', updateFade);
+  }
 
-    let stepsHtml = '';
+  function escapeHtml(str) {
+    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
 
-    // Step 1: Received Data
-    stepsHtml += createStep(1, 'Received Data', 'The codeword received from the network (potentially with noise).', 
-      `<span class="text-text-primary">${codeword}</span>`
-    );
+  // ─── ACK/NACK Logic (ARQ) ─────────────────────────────────────────
+  const btnSendAck = document.getElementById('btn-send-ack');
+  const btnSendNack = document.getElementById('btn-send-nack');
+  const ackSentStatus = document.getElementById('ack-sent-status');
+  const nackSentStatus = document.getElementById('nack-sent-status');
 
-    // Step 2: Generator Polynomial
-    stepsHtml += createStep(2, 'Generator Polynomial', 'The divisor used for error detection.', 
-      `<span class="text-text-primary">${polyStr}</span>`
-    );
-
-    // Step 7: Receiver Divides the Received Codeword
-    let divHtml = `
-      <div class="flex gap-2 min-w-max font-mono">
-        <div>${polyStr}</div>
-        <div class="border-l-2 border-border pl-2 flex flex-col" style="white-space: pre;">
-          <div>${codeword}</div>
-    `;
-    verifyResult.steps.forEach((step, idx) => {
-      divHtml += `<div class="text-text-secondary border-b border-dashed border-border w-fit">${step.padding}${step.divisor}</div>`;
-      let nextStr = step.padding + ' ' + step.xorResult.substring(1);
-      if (idx < verifyResult.steps.length - 1) {
-        nextStr += codeword[step.padding.length + step.divisor.length];
-      }
-      
-      if (idx === verifyResult.steps.length - 1) {
-        const remStr = step.xorResult.substring(1);
-        divHtml += `<div>${step.padding} <span class="font-bold text-text-primary">${remStr}</span></div>`;
-      } else {
-        divHtml += `<div>${nextStr}</div>`;
-      }
+  if (btnSendAck) {
+    btnSendAck.addEventListener('click', async () => {
+      if (!myIP) return;
+      if (receiverTimeoutTimer) clearTimeout(receiverTimeoutTimer);
+      const ackRef = ref(db, `connections/${myIP.replace(/\./g, '_')}/ack`);
+      await set(ackRef, { type: 'ACK', timestamp: Date.now() });
+      btnSendAck.disabled = true;
+      btnSendAck.style.opacity = '0.5';
+      if (ackSentStatus) ackSentStatus.classList.remove('hidden');
+      showToast('ACK sent to sender', 'success');
     });
-    divHtml += `
-        </div>
-      </div>
-    `;
-    stepsHtml += createStep(7, 'Receiver Divides the Received Codeword', 'Long division using Modulo-2 arithmetic (XOR) on the received codeword.', divHtml);
+  }
 
-    // Step 8: Check the Remainder
-    const isClean = verifyResult.isValid;
-    const verdict = isClean ? 'Clean (No errors detected)' : 'Error detected';
-    const finalRem = verifyResult.remainder;
-    stepsHtml += createStep(8, 'Check the Remainder', 
-      'If the final remainder is all zeros, the data is error-free. If the remainder is non-zero, an error was detected.',
-      `Calculated Remainder: <span class="font-bold">${finalRem}</span><br>Verdict: <span class="font-bold">${verdict}</span>`
-    );
+  if (btnSendNack) {
+    btnSendNack.addEventListener('click', async () => {
+      if (!myIP) return;
+      if (receiverTimeoutTimer) clearTimeout(receiverTimeoutTimer);
+      const ackRef = ref(db, `connections/${myIP.replace(/\./g, '_')}/ack`);
+      await set(ackRef, { type: 'NACK', timestamp: Date.now() });
+      btnSendNack.disabled = true;
+      btnSendNack.style.opacity = '0.5';
+      if (nackSentStatus) nackSentStatus.classList.remove('hidden');
+      showToast('NACK sent — requesting retransmission', 'warning');
+    });
+  }
 
-    calcStepsContainer.innerHTML = stepsHtml;
-  };
 });

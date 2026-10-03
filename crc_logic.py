@@ -7,28 +7,77 @@ Translated from js/crc.js and js/network.js into Python.
 import random
 import re
 
+# We use CRC-16-CCITT: x^16 + x^12 + x^5 + 1 -> 10001000000100001
+CRC16_POLY = "10001000000100001"
+
+def text_to_binary(text: str) -> dict:
+    """
+    Converts a text string to ASCII details and a concatenated binary string.
+    """
+    chars = []
+    binary_str = ""
+    for char in text:
+        dec = ord(char)
+        hx = format(dec, '02x')
+        bin_val = format(dec, '08b')
+        binary_str += bin_val
+        chars.append({
+            'char': char,
+            'decimal': dec,
+            'hex': hx,
+            'binary': bin_val
+        })
+    return {
+        'chars': chars,
+        'binaryString': binary_str,
+        'message': text
+    }
+
+def binary_to_text(binary_str: str) -> str:
+    """
+    Converts a binary string back to text. 8 bits per character.
+    If corrupted, returns garbled text (like real corruption).
+    """
+    chars = []
+    # Process in 8-bit chunks
+    for i in range(0, len(binary_str) - 7, 8):
+        chunk = binary_str[i:i+8]
+        try:
+            char_code = int(chunk, 2)
+            # Only allow printable ascii range to avoid breaking UI
+            if 32 <= char_code <= 126:
+                chars.append(chr(char_code))
+            else:
+                # Use unicode replacement character for garbled text
+                chars.append('')
+        except ValueError:
+            chars.append('')
+    return "".join(chars)
+
+def generate_random_mac() -> str:
+    """Generate a random fake MAC address."""
+    return ":".join(f"{random.randint(0, 255):02X}" for _ in range(6))
+
+def mac_to_binary(mac: str) -> str:
+    """Convert MAC address string (AA:BB:CC:DD:EE:FF) to 48-bit binary string."""
+    clean_mac = mac.replace(":", "").replace("-", "")
+    return bin(int(clean_mac, 16))[2:].zfill(48)
+
+def binary_to_mac(binary: str) -> str:
+    """Convert 48-bit binary string to MAC address string."""
+    hex_str = format(int(binary, 2), '012x').upper()
+    return ":".join(hex_str[i:i+2] for i in range(0, 12, 2))
 
 def xor_division(dividend: str, divisor: str) -> dict:
     """
     Performs Modulo-2 binary division using XOR operations.
-    This is the CORE algorithm behind CRC error detection.
-
-    Args:
-        dividend: The binary string to be divided (e.g., "110101000")
-        divisor:  The generator polynomial in binary (e.g., "1011")
-
-    Returns:
-        A dict with 'steps' (list of intermediate XOR steps) and 'remainder' (final remainder string)
     """
     steps = []
-
-    # Take the first chunk of bits equal to the length of the divisor
     current = dividend[:len(divisor)]
     pos = len(divisor)
 
     while pos <= len(dividend):
         if current[0] == '1':
-            # If the leading bit is 1, XOR with the actual divisor
             xor_result = ''
             for i in range(len(divisor)):
                 xor_result += '0' if current[i] == divisor[i] else '1'
@@ -39,11 +88,8 @@ def xor_division(dividend: str, divisor: str) -> dict:
                 'xorResult': xor_result,
                 'padding': ' ' * (pos - len(divisor))
             })
-
-            # Drop the leading bit (it's always 0 after XOR) and continue
             current = xor_result[1:]
         else:
-            # If the leading bit is 0, XOR with all zeros (result is same as current)
             zero_divisor = '0' * len(divisor)
             xor_result = ''
             for i in range(len(divisor)):
@@ -55,196 +101,138 @@ def xor_division(dividend: str, divisor: str) -> dict:
                 'xorResult': xor_result,
                 'padding': ' ' * (pos - len(divisor))
             })
-
-            # Drop the leading bit and continue
             current = xor_result[1:]
 
-        # Bring down the next bit from the dividend
         if pos < len(dividend):
             current += dividend[pos]
-
         pos += 1
 
     return {'steps': steps, 'remainder': current}
 
 
-def encode_crc(data: str, poly: str) -> dict:
+def full_encapsulate(message: str) -> dict:
     """
-    Encodes data using CRC by appending remainder bits.
-    This is what the SENDER uses before transmitting data.
-
-    Steps:
-      1. Append (len(poly) - 1) zeros to the original data
-      2. Divide the padded data by the polynomial using xor_division
-      3. The remainder becomes the CRC check bits
-      4. Codeword = original data + remainder
-
-    Args:
-        data: The original binary data string (e.g., "110101")
-        poly: The generator polynomial in binary (e.g., "1011")
-
-    Returns:
-        A dict with 'codeword', 'steps', and 'remainder'
+    SENDER FLOW:
+    1. Text -> Binary (Payload)
+    2. Auto-gen MACs -> Header
+    3. Frame = Header + Payload
+    4. CRC = Frame % CRC16_POLY
+    5. Final = Frame + CRC
     """
-    # Step 1: Pad the data with zeros
-    dividend = data + '0' * (len(poly) - 1)
+    # 1. Text to Binary
+    app_layer = text_to_binary(message)
+    payload_bits = app_layer['binaryString']
 
-    # Step 2: Perform XOR division
-    result = xor_division(dividend, poly)
+    # 2. Build Header
+    src_mac = generate_random_mac()
+    dst_mac = generate_random_mac()
+    header_bits = mac_to_binary(src_mac) + mac_to_binary(dst_mac)
+    
+    # 3. Frame without CRC
+    frame_bits = header_bits + payload_bits
 
-    # Step 3: Create codeword = original data + CRC remainder
-    codeword = data + result['remainder']
+    # 4. CRC Calculation
+    degree = len(CRC16_POLY) - 1
+    dividend = frame_bits + '0' * degree
+    crc_result = xor_division(dividend, CRC16_POLY)
+    crc_remainder = crc_result['remainder']
+
+    # 5. Final Codeword
+    codeword = frame_bits + crc_remainder
 
     return {
-        'codeword': codeword,
-        'steps': result['steps'],
-        'remainder': result['remainder']
+        'message': message,
+        'generator': CRC16_POLY,
+        'srcMAC': src_mac,
+        'dstMAC': dst_mac,
+        'payloadBits': payload_bits,
+        'headerBits': header_bits,
+        'frameBits': frame_bits,
+        'crcRemainder': crc_remainder,
+        'crcSteps': crc_result['steps'],
+        'finalCodeword': codeword,
+        'asciiTable': app_layer['chars']
     }
 
 
-def verify_crc(codeword: str, poly: str) -> dict:
+def full_deencapsulate(codeword: str) -> dict:
     """
-    Verifies a received codeword using CRC.
-    This is what the RECEIVER uses to check for errors.
-
-    Steps:
-      1. Divide the entire received codeword by the polynomial
-      2. If the remainder is all zeros → data is valid (no errors)
-      3. If the remainder is non-zero → errors detected
-
-    Args:
-        codeword: The received binary codeword string
-        poly:     The same generator polynomial used by the sender
-
-    Returns:
-        A dict with 'isValid' (bool), 'steps', and 'remainder'
+    RECEIVER FLOW:
+    1. Verify CRC on entire codeword
+    2. Extract MACs
+    3. Extract Payload
+    4. Payload -> Text
     """
-    result = xor_division(codeword, poly)
-    is_valid = int(result['remainder'], 2) == 0
+    degree = len(CRC16_POLY) - 1
+    
+    # 1. Verify CRC
+    crc_result = xor_division(codeword, CRC16_POLY)
+    is_valid = int(crc_result['remainder'], 2) == 0
+
+    # 2. Extract Parts
+    frame_bits = codeword[:-degree]
+    received_crc = codeword[-degree:]
+    
+    header_bits = frame_bits[:96]
+    src_mac_bits = header_bits[:48]
+    dst_mac_bits = header_bits[48:96]
+    
+    payload_bits = frame_bits[96:]
+    
+    # 3. Decode Text
+    decoded_text = binary_to_text(payload_bits)
 
     return {
         'isValid': is_valid,
-        'steps': result['steps'],
-        'remainder': result['remainder']
+        'calculatedRemainder': crc_result['remainder'],
+        'receivedCRC': received_crc,
+        'crcSteps': crc_result['steps'],
+        'srcMAC': binary_to_mac(src_mac_bits),
+        'dstMAC': binary_to_mac(dst_mac_bits),
+        'decodedText': decoded_text,
+        'payloadBits': payload_bits,
+        'headerBits': header_bits
     }
 
 
 def flip_random_bit(codeword: str) -> dict:
-    """
-    Flips a single random bit in the codeword to simulate transmission errors.
-
-    Args:
-        codeword: The binary codeword string
-
-    Returns:
-        A dict with 'newCodeword' and 'flippedIndex'
-    """
-    index = random.randint(0, len(codeword) - 1)
+    # Ensure we only flip a bit in the payload so the text actually changes visually.
+    # Header is 96 bits, CRC trailer is 16 bits.
+    min_idx = 96
+    max_idx = len(codeword) - 17
+    
+    if min_idx > max_idx:
+        index = random.randint(0, len(codeword) - 1)
+    else:
+        index = random.randint(min_idx, max_idx)
+        
     chars = list(codeword)
     chars[index] = '1' if chars[index] == '0' else '0'
-
     return {
         'newCodeword': ''.join(chars),
-        'flippedIndex': index
+        'flippedIndex': index,
+        'wasCorrupted': True
     }
 
 
-def simulate_channel_transmission(codeword: str) -> str:
-    """
-    Simulates a noisy network channel.
-    30% chance of flipping one random bit (simulating interference/noise).
-    70% chance of clean transmission.
+def simulate_channel(codeword: str, probability: float = 0.3) -> dict:
+    if random.random() < probability:
+        return flip_random_bit(codeword)
+    return {
+        'newCodeword': codeword,
+        'flippedIndex': -1,
+        'wasCorrupted': False
+    }
 
-    Args:
-        codeword: The binary codeword string to transmit
+# Keep legacy methods for any old endpoints to not break anything
+def encode_crc(data: str, poly: str) -> dict:
+    dividend = data + '0' * (len(poly) - 1)
+    result = xor_division(dividend, poly)
+    return {'codeword': data + result['remainder'], 'steps': result['steps'], 'remainder': result['remainder']}
 
-    Returns:
-        The (possibly corrupted) codeword string
-    """
-    if random.random() < 0.3:
-        result = flip_random_bit(codeword)
-        return result['newCodeword']
-    return codeword
-
+def verify_crc(codeword: str, poly: str) -> dict:
+    result = xor_division(codeword, poly)
+    return {'isValid': int(result['remainder'], 2) == 0, 'steps': result['steps'], 'remainder': result['remainder']}
 
 def parse_polynomial_input(input_str: str) -> str | None:
-    """
-    Converts polynomial expressions (like "x^3+x+1") or
-    binary strings (like "1011") into a binary string.
-
-    Supported formats:
-      - Binary: "1011"
-      - Algebraic: "x^3+x+1", "x⁴+x+1", "x4+x+1"
-
-    Args:
-        input_str: The user's input string
-
-    Returns:
-        A binary string (e.g., "1011") or None if the input is invalid
-    """
-    trimmed = input_str.strip()
-    if not trimmed:
-        return None
-
-    # Case 1: Already a binary string (only 0s and 1s)
-    if re.match(r'^[01]+$', trimmed):
-        return trimmed
-
-    # Case 2: Algebraic polynomial expression (contains 'x')
-    if 'x' in trimmed.lower():
-        clean_str = trimmed.lower().replace(' ', '')
-
-        # Normalize Unicode superscripts to regular digits
-        superscript_map = {
-            '⁰': '0', '¹': '1', '²': '2', '³': '3', '⁴': '4',
-            '⁵': '5', '⁶': '6', '⁷': '7', '⁸': '8', '⁹': '9'
-        }
-        for sup, digit in superscript_map.items():
-            clean_str = clean_str.replace(sup, digit)
-
-        # Validate: only allow x, ^, +, and digits
-        if re.search(r'[^x\^+0-9]', clean_str):
-            return None
-
-        terms = [t for t in clean_str.split('+') if len(t) > 0]
-        powers = []
-
-        for term in terms:
-            if term == 'x':
-                powers.append(1)
-            elif term.startswith('x^'):
-                power_str = term[2:]
-                try:
-                    power = int(power_str)
-                    if power < 0:
-                        return None
-                    powers.append(power)
-                except ValueError:
-                    return None
-            elif term.startswith('x') and len(term) > 1:
-                # Handles x4 after superscript normalization
-                power_str = term[1:]
-                try:
-                    power = int(power_str)
-                    if power < 0:
-                        return None
-                    powers.append(power)
-                except ValueError:
-                    return None
-            elif re.match(r'^\d+$', term):
-                powers.append(0)
-            else:
-                return None
-
-        if not powers:
-            return None
-
-        max_power = max(powers)
-        binary_arr = ['0'] * (max_power + 1)
-
-        for p in powers:
-            binary_arr[max_power - p] = '1'
-
-        return ''.join(binary_arr)
-
-    return None
+    return CRC16_POLY

@@ -1,7 +1,4 @@
-import { initVideoModal } from './modal.js';
-
 document.addEventListener('DOMContentLoaded', () => {
-  initVideoModal();
   // --- How It Works Accordion ---
   const btnToggleInfo = document.getElementById('btn-toggle-info');
   const infoContent = document.getElementById('info-content');

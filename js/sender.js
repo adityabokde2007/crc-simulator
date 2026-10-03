@@ -1,20 +1,17 @@
 import { db } from './firebase-config.js';
 import { ref, set, onValue } from 'firebase/database';
-import { setupModal, initVideoModal } from './modal.js';
 import { showToast } from './toast.js';
 
-// Base URL for the Python Flask backend API
-// In development (localhost) it uses port 5000, in production it uses the Render URL
 const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:5000';
 
 document.addEventListener('DOMContentLoaded', () => {
-  initVideoModal();
-  // IP & Connection State
-  let myIP = sessionStorage.getItem('crc_my_ip') || '';
 
+
+  let myIP = sessionStorage.getItem('crc_my_ip') || '';
   let targetIP = sessionStorage.getItem('crc_target_ip') || '';
   let connectionStatus = sessionStorage.getItem('crc_conn_status') || 'idle';
 
+  // ─── DOM refs ──────────────────────────────────────────────────────
   const ipSetupContainer = document.getElementById('ip-setup-container');
   const ipDisplayContainer = document.getElementById('ip-display-container');
   const inputMyIp = document.getElementById('input-my-ip');
@@ -23,7 +20,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnEditIp = document.getElementById('btn-edit-ip');
   const connectionPanelWrapper = document.getElementById('connection-panel-wrapper');
 
-  // DOM Elements - Connection
   const inputTargetIP = document.getElementById('input-target-ip');
   const btnConnect = document.getElementById('btn-connect');
   const connStateIdle = document.getElementById('conn-state-idle');
@@ -37,29 +33,39 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnDisconnect = document.getElementById('btn-disconnect');
   const encoderPanel = document.getElementById('encoder-panel');
 
-  // DOM Elements - Encoder
   const inputData = document.getElementById('input-data');
-  const inputPoly = document.getElementById('input-poly');
   const errorData = document.getElementById('error-data');
-  const errorPoly = document.getElementById('error-poly');
+  const wordCount = document.getElementById('word-count');
   const btnEncode = document.getElementById('btn-encode');
   
-  // DOM Elements - Transmit
   const transmitSection = document.getElementById('transmit-section');
   const btnTransmit = document.getElementById('btn-transmit');
   const transmitContentDefault = document.getElementById('transmit-content-default');
   const transmitContentLoading = document.getElementById('transmit-content-loading');
+  
+  const calculationPanel = document.getElementById('calculation-panel');
+  const asciiTableBody = document.getElementById('ascii-table-body');
+  const asciiTableWrapper = document.getElementById('ascii-table-wrapper');
+  const asciiTableToggle = document.getElementById('ascii-table-toggle');
+  const asciiToggleText = document.getElementById('ascii-toggle-text');
+  const payloadBinaryDisplay = document.getElementById('payload-binary-display');
+  const displaySrcMac = document.getElementById('display-src-mac');
+  const displayDstMac = document.getElementById('display-dst-mac');
   const calcStepsContainer = document.getElementById('calc-steps-container');
+  const crcDivisionOuter = document.getElementById('crc-division-outer');
+  const crcDivisionScroll = document.getElementById('crc-division-scroll');
+  const crcToggleBtn = document.getElementById('crc-toggle-btn');
+  const crcToggleText = document.getElementById('crc-toggle-text');
+  const displayFinalCrc = document.getElementById('display-final-crc');
+  const displayPayloadLen = document.getElementById('display-payload-len');
 
-  // Logic State
-  let currentSession = null; // { codeword, poly, originalData, remainder, steps }
-  let currentCodeword = null;
+  let currentSession = null; 
   let unsubscribeFirebase = null;
 
-  // Panels
-  const calculationPanel = document.getElementById('calculation-panel');
+  // ═══════════════════════════════════════════════════════════════════
+  //  CONNECTION LOGIC (unchanged from before)
+  // ═══════════════════════════════════════════════════════════════════
 
-  // --- Connection Logic ---
   const renderMyIPState = () => {
     if (myIP) {
       ipSetupContainer.classList.add('hidden');
@@ -67,6 +73,7 @@ document.addEventListener('DOMContentLoaded', () => {
       ipDisplayContainer.style.display = 'flex';
       displayMyIp.textContent = myIP;
       connectionPanelWrapper.classList.remove('opacity-50', 'pointer-events-none');
+      btnConnect.disabled = inputTargetIP.value.trim() === '';
     } else {
       ipSetupContainer.classList.remove('hidden');
       ipSetupContainer.style.display = 'flex';
@@ -92,386 +99,539 @@ document.addEventListener('DOMContentLoaded', () => {
     sessionStorage.removeItem('crc_my_ip');
     inputMyIp.value = displayMyIp.textContent;
     renderMyIPState();
+    resetConnection();
   });
 
-  renderMyIPState();
-
-  inputTargetIP.value = targetIP;
-  inputTargetIP.addEventListener('input', (e) => {
-    targetIP = e.target.value;
-    sessionStorage.setItem('crc_target_ip', targetIP);
-    btnConnect.disabled = !targetIP;
+  inputTargetIP.addEventListener('input', () => {
+    btnConnect.disabled = inputTargetIP.value.trim() === '';
   });
-  if (targetIP) btnConnect.disabled = false;
 
   const renderConnectionState = () => {
     connStateIdle.classList.add('hidden');
     connStatePending.classList.add('hidden');
     connStateAccepted.classList.add('hidden');
-    connErrorMsg.classList.add('hidden');
     encoderPanel.classList.add('hidden');
+    connErrorMsg.classList.add('hidden');
 
     if (connectionStatus === 'idle') {
       connStateIdle.classList.remove('hidden');
+      connStateIdle.style.display = 'flex';
+      inputTargetIP.value = targetIP;
+      if (unsubscribeFirebase) { unsubscribeFirebase(); unsubscribeFirebase = null; }
     } else if (connectionStatus === 'pending') {
       connStatePending.classList.remove('hidden');
       displayTargetIP.textContent = targetIP;
+      listenToConnectionStatus();
     } else if (connectionStatus === 'accepted') {
       connStateAccepted.classList.remove('hidden');
       displayTargetIPAccepted.textContent = targetIP;
       encoderPanel.classList.remove('hidden');
+      listenToConnectionStatus();
     } else if (connectionStatus === 'rejected') {
       connStateIdle.classList.remove('hidden');
+      connStateIdle.style.display = 'flex';
       connErrorMsg.classList.remove('hidden');
+      connectionStatus = 'idle';
+      sessionStorage.setItem('crc_conn_status', 'idle');
     }
   };
 
-  const listenToConnection = () => {
+  const listenToConnectionStatus = () => {
+    if (!myIP || !targetIP) return;
+    const reqRef = ref(db, `connections/${targetIP.replace(/\./g, '_')}/request`);
     if (unsubscribeFirebase) unsubscribeFirebase();
-    if (!targetIP) return;
-    
-    const requestRef = ref(db, `connections/${targetIP.replace(/\./g, '_')}/request`);
-    unsubscribeFirebase = onValue(requestRef, (snapshot) => {
+    unsubscribeFirebase = onValue(reqRef, (snapshot) => {
       const data = snapshot.val();
-      if (data && data.status) {
-        if (connectionStatus === 'pending' && data.status === 'accepted') {
-          showToast(`Connection accepted by ${targetIP}`, 'success');
-        } else if (connectionStatus === 'pending' && data.status === 'rejected') {
-          showToast(`Connection rejected by ${targetIP}`, 'error');
-        }
-        
-        connectionStatus = data.status;
-        sessionStorage.setItem('crc_conn_status', connectionStatus);
-        renderConnectionState();
-      } else {
+      if (!data) {
         if (connectionStatus === 'accepted' || connectionStatus === 'pending') {
-          showToast(`Connection dropped by ${targetIP}`, 'warning');
+          showToast('Connection disconnected by receiver', 'warning');
+          resetConnection();
         }
-        connectionStatus = 'idle';
-        sessionStorage.setItem('crc_conn_status', 'idle');
-        renderConnectionState();
+        return;
+      }
+      if (data.fromIP === myIP) {
+        if (data.status === 'accepted' && connectionStatus !== 'accepted') {
+          connectionStatus = 'accepted';
+          sessionStorage.setItem('crc_conn_status', 'accepted');
+          renderConnectionState();
+          showToast(`Connection accepted by ${targetIP}`, 'success');
+        } else if (data.status === 'rejected') {
+          connectionStatus = 'rejected';
+          sessionStorage.setItem('crc_conn_status', 'rejected');
+          renderConnectionState();
+        }
       }
     });
   };
 
   btnConnect.addEventListener('click', async () => {
-    if (!targetIP) return;
-    try {
-      const requestRef = ref(db, `connections/${targetIP.replace(/\./g, '_')}/request`);
-      await set(requestRef, {
-        fromIP: myIP,
-        status: 'pending',
-        timestamp: Date.now()
-      });
-      connectionStatus = 'pending';
-      sessionStorage.setItem('crc_conn_status', connectionStatus);
-      renderConnectionState();
-      listenToConnection();
-      showToast(`Connection request sent to ${targetIP}`, 'info');
-    } catch (err) {
-      console.error(err);
-      showToast("Error sending connection request.", 'error');
+    const tip = inputTargetIP.value.trim();
+    if (!/^(\d{1,3}\.){3}\d{1,3}$/.test(tip)) {
+      showToast('Invalid target IP format', 'error');
+      return;
     }
+    targetIP = tip;
+    sessionStorage.setItem('crc_target_ip', targetIP);
+    connectionStatus = 'pending';
+    sessionStorage.setItem('crc_conn_status', 'pending');
+    const reqRef = ref(db, `connections/${targetIP.replace(/\./g, '_')}/request`);
+    await set(reqRef, { fromIP: myIP, status: 'pending', timestamp: Date.now() });
+    renderConnectionState();
   });
 
-  if (btnCancelRequest) {
-    btnCancelRequest.addEventListener('click', async () => {
-      if (!targetIP) return;
-      try {
-        const requestRef = ref(db, `connections/${targetIP.replace(/\./g, '_')}/request`);
-        await set(requestRef, null);
-        connectionStatus = 'idle';
-        sessionStorage.setItem('crc_conn_status', 'idle');
-        renderConnectionState();
-        if (unsubscribeFirebase) {
-          unsubscribeFirebase();
-          unsubscribeFirebase = null;
-        }
-        showToast(`Request to ${targetIP} cancelled`, 'warning');
-      } catch (err) {
-        console.error(err);
-        showToast("Error cancelling request", 'error');
-      }
-    });
-  }
-
-  btnNewTransmission.addEventListener('click', async () => {
-    if (!targetIP) return;
-    try {
-      const transmissionRef = ref(db, `connections/${targetIP.replace(/\./g, '_')}/transmission`);
-      await set(transmissionRef, null);
-      resetEncoder();
-      showToast('Ready for new transmission', 'info');
-    } catch (err) {
-      console.error(err);
-      showToast("Error starting new transmission", 'error');
-    }
+  btnCancelRequest.addEventListener('click', async () => {
+    const reqRef = ref(db, `connections/${targetIP.replace(/\./g, '_')}/request`);
+    await set(reqRef, null);
+    resetConnection();
   });
 
   btnDisconnect.addEventListener('click', async () => {
-    if (!targetIP) return;
-    try {
-      const requestRef = ref(db, `connections/${targetIP.replace(/\./g, '_')}/request`);
-      await set(requestRef, null);
-      connectionStatus = 'idle';
-      sessionStorage.setItem('crc_conn_status', 'idle');
-      resetEncoder();
-      renderConnectionState();
-      if (unsubscribeFirebase) {
-        unsubscribeFirebase();
-        unsubscribeFirebase = null;
-      }
-      showToast(`Disconnected from ${targetIP}`, 'warning');
-    } catch (err) {
-      console.error(err);
-      showToast("Error disconnecting", 'error');
-    }
+    const reqRef = ref(db, `connections/${targetIP.replace(/\./g, '_')}/request`);
+    await set(reqRef, null);
+    resetConnection();
+    showToast('Disconnected', 'warning');
   });
 
-  // Restore state if returning to page
-  renderConnectionState();
-  if (connectionStatus === 'pending' || connectionStatus === 'accepted') {
-    listenToConnection();
+  function resetConnection() {
+    targetIP = '';
+    connectionStatus = 'idle';
+    sessionStorage.setItem('crc_target_ip', '');
+    sessionStorage.setItem('crc_conn_status', 'idle');
+    if (unsubscribeFirebase) { unsubscribeFirebase(); unsubscribeFirebase = null; }
+    resetEncoder();
+    renderConnectionState();
   }
 
-  // --- Encoder Logic ---
-  // Cache for parsed polynomial so we don't call API on every keystroke unnecessarily
-  let lastParsedPoly = null;
-  let lastPolyInput = '';
+  renderMyIPState();
+  if (myIP) renderConnectionState();
 
-  const validateInputs = () => {
-    const data = inputData.value.replace(/[^01]/g, '');
-    if (inputData.value !== data) {
-      inputData.value = data;
+  // ═══════════════════════════════════════════════════════════════════
+  //  ENCODER & TRANSMIT LOGIC
+  // ═══════════════════════════════════════════════════════════════════
+
+  inputData.addEventListener('input', () => {
+    const val = inputData.value.trim();
+    const words = val.length === 0 ? 0 : val.split(/\s+/).length;
+    wordCount.textContent = `${words} / 50 words`;
+
+    if (val.length === 0) {
+      btnEncode.disabled = true;
+      errorData.classList.add('hidden');
+    } else if (words > 50) {
+      btnEncode.disabled = true;
+      errorData.textContent = "Message is too long (max 50 words).";
+      errorData.classList.remove('hidden');
+    } else {
+      btnEncode.disabled = false;
+      errorData.classList.add('hidden');
     }
-    
-    const polyStr = inputPoly.value;
-    const parsedPoly = lastPolyInput === polyStr ? lastParsedPoly : null;
-
-    const isDataValid = /^[01]+$/.test(data);
-    const isPolyValid = parsedPoly !== null && parsedPoly.length > 1;
-
-    errorData.classList.toggle('hidden', data.length === 0 || isDataValid);
-    errorPoly.classList.toggle('hidden', polyStr.length === 0 || isPolyValid);
-    
-    inputData.classList.toggle('input-error', !isDataValid && data.length > 0);
-    inputPoly.classList.toggle('input-error', !isPolyValid && polyStr.length > 0);
-
-    btnEncode.disabled = !(isDataValid && isPolyValid);
-    return { isDataValid, isPolyValid, data, parsedPoly };
-  };
-
-  // Call Python backend to parse polynomial whenever user types
-  const parsePolyFromBackend = async () => {
-    const polyStr = inputPoly.value.trim();
-    if (!polyStr) {
-      lastParsedPoly = null;
-      lastPolyInput = '';
-      validateInputs();
-      return;
-    }
-    try {
-      const resp = await fetch(`${API_BASE}/api/parse-poly`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ input: polyStr })
-      });
-      const result = await resp.json();
-      lastParsedPoly = result.binary;
-      lastPolyInput = inputPoly.value;
-    } catch (err) {
-      console.error('Error parsing polynomial:', err);
-      lastParsedPoly = null;
-      lastPolyInput = inputPoly.value;
-    }
-    validateInputs();
-  };
-
-  inputData.addEventListener('input', validateInputs);
-  inputPoly.addEventListener('input', () => {
-    // Debounce the API call slightly
-    clearTimeout(inputPoly._debounce);
-    inputPoly._debounce = setTimeout(parsePolyFromBackend, 300);
   });
 
-  const resetEncoder = () => {
-    inputData.value = '';
-    inputPoly.value = '';
-    currentSession = null;
-    transmitSection.classList.add('hidden');
-    calculationPanel.classList.add('hidden');
-    validateInputs();
-  };
-
   btnEncode.addEventListener('click', async () => {
-    const { isDataValid, isPolyValid, data, parsedPoly } = validateInputs();
-    if (!isDataValid || !isPolyValid) return;
+    const text = inputData.value.trim();
+    if (!text) return;
+
+    btnEncode.disabled = true;
+    btnEncode.innerHTML = '<svg class="animate-spin" viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg> Encoding...';
 
     try {
-      btnEncode.disabled = true;
-      // Call Python backend to encode CRC
-      const resp = await fetch(`${API_BASE}/api/encode`, {
+      const resp = await fetch(`${API_BASE}/api/encapsulate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ data: data, poly: parsedPoly })
+        body: JSON.stringify({ message: text })
       });
-      const res = await resp.json();
+      const data = await resp.json();
 
-      if (res.error) {
-        showToast(res.error, 'error');
-        btnEncode.disabled = false;
+      if (data.error) {
+        showToast(data.error, 'error');
+        resetEncoderBtn();
         return;
       }
 
-      currentSession = {
-        originalData: data,
-        poly: parsedPoly,
-        ...res
-      };
+      currentSession = data;
+      renderCalculations(data);
       
-      currentCodeword = res.codeword;
-
-      renderCalculationSteps();
-      transmitSection.classList.remove('hidden');
-      calculationPanel.classList.remove('hidden');
-      showToast('Data encoded successfully (via Python backend)', 'success');
-    } catch (err) {
-      console.error('Encode error:', err);
-      showToast('Error connecting to Python backend. Is Flask running?', 'error');
-    } finally {
-      btnEncode.disabled = false;
-    }
-  });
-
-  btnTransmit.addEventListener('click', async () => {
-    if (!targetIP || !currentCodeword || !currentSession) return;
-    try {
-      btnTransmit.disabled = true;
-      transmitContentDefault.classList.add('hidden');
-      transmitContentLoading.classList.remove('hidden');
-      transmitContentLoading.style.display = 'flex';
-
-      // Simulate channel delay
-      await new Promise(resolve => setTimeout(resolve, 1200));
-
-      // Call Python backend to simulate channel noise
-      const channelResp = await fetch(`${API_BASE}/api/simulate-channel`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ codeword: currentCodeword })
-      });
-      const channelResult = await channelResp.json();
-      const finalCodeword = channelResult.codeword;
-
-      const transmissionRef = ref(db, `connections/${targetIP.replace(/\./g, '_')}/transmission`);
-      await set(transmissionRef, {
-        codeword: finalCodeword,
-        poly: currentSession.poly,
-        timestamp: Date.now()
-      });
-      
-      transmitContentLoading.classList.add('hidden');
-      transmitContentLoading.style.display = '';
-      transmitContentDefault.classList.remove('hidden');
-      btnTransmit.disabled = false;
-      showToast('Transmitted successfully', 'success');
     } catch (err) {
       console.error(err);
-      transmitContentLoading.classList.add('hidden');
-      transmitContentLoading.style.display = '';
-      transmitContentDefault.classList.remove('hidden');
-      btnTransmit.disabled = false;
-      showToast("Error transmitting data", 'error');
+      showToast('Backend connection failed.', 'error');
+    } finally {
+      resetEncoderBtn();
     }
   });
 
-  // --- Calculation Steps Rendering ---
-  const renderCalculationSteps = () => {
-    if (!currentSession) return;
-    calcStepsContainer.innerHTML = '';
-    
-    const polyStr = currentSession.poly;
-    const dataStr = currentSession.originalData;
-    const polyLen = polyStr.length;
-    const padding = polyLen - 1;
-    const appendedData = dataStr + '0'.repeat(padding);
-    const remainder = currentSession.remainder;
-    
-    const userPolyInput = inputPoly.value.trim();
-    const isAlgebraic = /x/i.test(userPolyInput);
+  function resetEncoderBtn() {
+    btnEncode.disabled = false;
+    btnEncode.innerHTML = '<span>Encode Data</span><svg viewBox="0 0 24 24"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>';
+  }
 
-    const createStep = (stepNum, title, desc, contentHtml) => {
-      return `
-        <div class="mb-8 last:mb-0">
-          <h4 class="text-lg font-bold text-text-primary mb-1">Step ${stepNum}: ${title}</h4>
-          <p class="text-sm text-text-secondary mb-3">${desc}</p>
-          <div class="bg-background p-4 rounded-md border border-border font-mono text-sm overflow-x-auto">
-            ${contentHtml}
-          </div>
-        </div>
-      `;
-    };
+  // ─── Render all calculation steps ──────────────────────────────────
+  function renderCalculations(data) {
+    calculationPanel.classList.remove('hidden');
+    transmitSection.classList.remove('hidden');
+    btnTransmit.disabled = false;
 
-    let stepsHtml = '';
+    // ── Step 1: ASCII Table ──
+    const chars = data.asciiTable;
+    let tableHtml = '';
+    chars.forEach((c) => {
+      const displayChar = c.char === ' ' ? '<span style="color:#9CA3AF;font-style:italic;">Space</span>' : escapeHtml(c.char);
+      tableHtml += `<tr style="border-bottom: 1px solid var(--color-border);">
+        <td class="p-3 border-r border-border">${displayChar}</td>
+        <td class="p-3 border-r border-border">${c.decimal}</td>
+        <td class="p-3 border-r border-border">${c.hex}</td>
+        <td class="p-3 font-bold text-accent">${c.binary}</td>
+      </tr>`;
+    });
+    asciiTableBody.innerHTML = tableHtml;
 
-    // Step 1: Original Data
-    stepsHtml += createStep(1, 'Original Data', 'The raw binary data entered for transmission.', 
-      `<span class="text-text-primary">${dataStr}</span>`
-    );
+    // Collapsible table: show first ~6 rows, collapse rest
+    if (chars.length > 6) {
+      asciiTableWrapper.classList.add('collapsed');
+      asciiTableToggle.classList.remove('hidden');
+      asciiTableToggle.classList.remove('is-expanded');
+      asciiToggleText.textContent = `Show all ${chars.length} characters`;
 
-    // Step 2: Generator Polynomial
-    let polyContent = `<span class="text-text-primary">${polyStr}</span>`;
-    if (isAlgebraic) {
-      polyContent = `Expression: <span class="text-text-primary">${userPolyInput}</span><br>Binary: <span class="text-text-primary">${polyStr}</span>`;
+      asciiTableToggle.onclick = () => {
+        const isExpanded = asciiTableWrapper.classList.toggle('collapsed');
+        // isExpanded is true when collapsed is ADDED (i.e. just collapsed)
+        if (!isExpanded) {
+          // Now expanded
+          asciiTableToggle.classList.add('is-expanded');
+          asciiToggleText.textContent = 'Show less';
+        } else {
+          asciiTableToggle.classList.remove('is-expanded');
+          asciiToggleText.textContent = `Show all ${chars.length} characters`;
+        }
+      };
+    } else {
+      asciiTableWrapper.classList.remove('collapsed');
+      asciiTableToggle.classList.add('hidden');
     }
-    stepsHtml += createStep(2, 'Generator Polynomial', 'The divisor used for error detection.', polyContent);
 
-    // Step 3: Append Zeros
-    stepsHtml += createStep(3, 'Append Zeros', 
-      `Since the generator polynomial has degree ${padding} (${polyLen} bits, meaning ${padding} zeros must be appended), we append ${padding} zeros to the end of the original data.`,
-      `Original: <span class="text-text-primary">${dataStr}</span><br>Padded: <span class="text-text-primary">${dataStr}</span><span class="font-bold text-text-secondary" style="color:var(--color-accent)">${'0'.repeat(padding)}</span>`
-    );
+    // Add spaces between every 8 bits for readability in the combined payload
+    const spacedPayload = data.payloadBits.match(/.{1,8}/g)?.join(' ') || data.payloadBits;
+    payloadBinaryDisplay.textContent = spacedPayload;
 
-    // Step 4: Perform XOR Division
-    let divHtml = `
-      <div class="flex gap-2 min-w-max font-mono">
-        <div>${polyStr}</div>
-        <div class="border-l-2 border-border pl-2 flex flex-col" style="white-space: pre;">
-          <div>${appendedData}</div>
-    `;
-    currentSession.steps.forEach((step, idx) => {
-      divHtml += `<div class="text-text-secondary border-b border-dashed border-border w-fit">${step.padding}${step.divisor}</div>`;
-      let nextStr = step.padding + ' ' + step.xorResult.substring(1);
-      if (idx < currentSession.steps.length - 1) {
-        nextStr += appendedData[step.padding.length + step.divisor.length];
-      }
-      if (idx === currentSession.steps.length - 1) {
-        const remStr = step.xorResult.substring(1);
-        divHtml += `<div>${step.padding} <span class="font-bold" style="color:var(--color-accent)">${remStr}</span></div>`;
+    // ── Step 2: MAC Addresses ──
+    displaySrcMac.textContent = data.srcMAC;
+    displayDstMac.textContent = data.dstMAC;
+
+    // ── Step 3: CRC Long Division (monospace <pre>) ──
+    renderCrcDivision(data, 'sender');
+
+    // ── Step 4: Final CRC ──
+    displayFinalCrc.textContent = data.crcRemainder;
+    displayPayloadLen.textContent = `${data.payloadBits.length} bits`;
+  }
+
+  /**
+   * Renders the CRC long division as a monospace-aligned <pre> block.
+   * Each row is padded to the same column positions.
+   */
+  function renderCrcDivision(data, mode) {
+    const poly = data.generator;
+    const frameBits = data.frameBits;
+    const padded = frameBits + '0'.repeat(poly.length - 1);
+    const steps = data.crcSteps;
+
+    // Build lines of text, each line has the same total width
+    const totalWidth = padded.length;
+    let lines = [];
+
+    // Line 1: the dividend (frame + padded zeros)
+    const dividendLine = frameBits + '0'.repeat(poly.length - 1);
+    lines.push({ text: dividendLine.padEnd(totalWidth), type: 'dividend' });
+
+    steps.forEach((step, idx) => {
+      const offset = step.padding.length;
+      // Divisor line
+      const divisorLine = ' '.repeat(offset) + step.divisor;
+      lines.push({ text: divisorLine.padEnd(totalWidth), type: 'divisor', offset, len: step.divisor.length });
+
+      // Result / remainder line
+      const resultBits = step.xorResult.substring(1);
+      if (idx === steps.length - 1) {
+        // Final remainder
+        const remLine = ' '.repeat(offset + 1) + resultBits;
+        lines.push({ text: remLine.padEnd(totalWidth), type: 'remainder' });
       } else {
-        divHtml += `<div>${nextStr}</div>`;
+        // Bring down next bit
+        let nextBit = '';
+        const nextPos = offset + step.divisor.length;
+        if (nextPos < padded.length) {
+          nextBit = padded[nextPos];
+        }
+        const interLine = ' '.repeat(offset + 1) + resultBits + nextBit;
+        lines.push({ text: interLine.padEnd(totalWidth), type: 'intermediate' });
       }
     });
-    divHtml += `
-        </div>
-      </div>
-    `;
-    stepsHtml += createStep(4, 'Perform XOR Division', 'Long division using Modulo-2 arithmetic (XOR).', divHtml);
 
-    // Step 5: Determine the Remainder
-    stepsHtml += createStep(5, 'Determine the Remainder (CRC bits)', 
-      'The final result of the XOR division is the remainder, which acts as our CRC check bits.',
-      `Remainder (CRC check bits): <span class="font-bold" style="color:var(--color-accent)">${remainder}</span>`
-    );
+    // Build HTML inside <pre>
+    let html = '';
+    lines.forEach((line) => {
+      if (line.type === 'dividend') {
+        html += `<span class="crc-dividend-line">${escapeHtml(line.text)}</span>\n`;
+      } else if (line.type === 'divisor') {
+        // Add a dashed underline effect using border on a span
+        const before = escapeHtml(line.text.substring(0, line.offset));
+        const divisorText = escapeHtml(line.text.substring(line.offset, line.offset + line.len));
+        const after = escapeHtml(line.text.substring(line.offset + line.len));
+        html += `${before}<span class="crc-divisor-line crc-separator">${divisorText}</span>${after}\n`;
+      } else if (line.type === 'remainder') {
+        const trimmed = line.text;
+        const leadingSpaces = trimmed.length - trimmed.trimStart().length;
+        const remText = trimmed.trimStart().trimEnd();
+        html += `${' '.repeat(leadingSpaces)}<span class="crc-remainder-line">${escapeHtml(remText)}</span>\n`;
+      } else {
+        html += `<span class="crc-dividend-line">${escapeHtml(line.text)}</span>\n`;
+      }
+    });
 
-    // Step 6: Form the Final Codeword
-    stepsHtml += createStep(6, 'Form the Final Codeword',
-      'The remainder replaces the appended zeros to form the final transmitted codeword.',
-      `Original data + CRC remainder = Codeword<br><br>
-       <span class="text-text-primary">${dataStr}</span> + <span class="font-bold" style="color:var(--color-accent)">${remainder}</span> = 
-       <span class="text-text-primary">${dataStr}</span><span class="font-bold" style="color:var(--color-accent)">${remainder}</span>`
-    );
+    calcStepsContainer.innerHTML = html;
 
-    calcStepsContainer.innerHTML = stepsHtml;
-  };
+    // Handle expand/collapse
+    if (steps.length > 8) {
+      crcToggleBtn.classList.remove('hidden');
+      crcToggleBtn.classList.remove('is-expanded');
+      crcToggleText.textContent = 'Show full calculation';
+      crcDivisionScroll.classList.remove('expanded');
+
+      crcToggleBtn.onclick = () => {
+        const wasExpanded = crcDivisionScroll.classList.toggle('expanded');
+        if (wasExpanded) {
+          crcToggleBtn.classList.add('is-expanded');
+          crcToggleText.textContent = 'Collapse calculation';
+        } else {
+          crcToggleBtn.classList.remove('is-expanded');
+          crcToggleText.textContent = 'Show full calculation';
+        }
+      };
+    } else {
+      crcToggleBtn.classList.add('hidden');
+      crcDivisionScroll.classList.add('expanded');
+    }
+
+    // Setup scroll fade indicators
+    setupScrollFade(crcDivisionOuter, crcDivisionScroll);
+  }
+
+  function setupScrollFade(outer, scrollEl) {
+    const updateFade = () => {
+      const sl = scrollEl.scrollLeft;
+      const maxScroll = scrollEl.scrollWidth - scrollEl.clientWidth;
+      outer.classList.toggle('has-scroll-left', sl > 4);
+      outer.classList.toggle('has-scroll-right', sl < maxScroll - 4);
+    };
+    scrollEl.addEventListener('scroll', updateFade);
+    // Initial check after render
+    requestAnimationFrame(updateFade);
+    // Re-check on resize
+    window.addEventListener('resize', updateFade);
+  }
+
+  function escapeHtml(str) {
+    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  // ─── ACK/NACK DOM refs ─────────────────────────────────────────────
+  const ackStatusContainer = document.getElementById('ack-status-container');
+  const ackWaiting = document.getElementById('ack-waiting');
+  const ackReceived = document.getElementById('ack-received');
+  const nackReceived = document.getElementById('nack-received');
+  const retransmitProgress = document.getElementById('retransmit-progress');
+  const ackTimeout = document.getElementById('ack-timeout');
+
+  let ackListenerUnsub = null;
+  let ackTimeoutTimer = null;
+
+  function showAckStatus(state) {
+    ackStatusContainer.classList.remove('hidden');
+    ackWaiting.classList.add('hidden');
+    ackReceived.classList.add('hidden');
+    nackReceived.classList.add('hidden');
+    if (ackTimeout) ackTimeout.classList.add('hidden');
+    if (retransmitProgress) retransmitProgress.classList.add('hidden');
+    
+    if (state === 'waiting') ackWaiting.classList.remove('hidden');
+    else if (state === 'ack') ackReceived.classList.remove('hidden');
+    else if (state === 'nack') nackReceived.classList.remove('hidden');
+    else if (state === 'timeout') { if (ackTimeout) ackTimeout.classList.remove('hidden'); }
+  }
+
+  function hideAckStatus() {
+    ackStatusContainer.classList.add('hidden');
+    ackWaiting.classList.add('hidden');
+    ackReceived.classList.add('hidden');
+    nackReceived.classList.add('hidden');
+    if (ackTimeout) ackTimeout.classList.add('hidden');
+    if (ackTimeoutTimer) { clearTimeout(ackTimeoutTimer); ackTimeoutTimer = null; }
+  }
+
+  function stopAckListener() {
+    if (ackListenerUnsub) { ackListenerUnsub(); ackListenerUnsub = null; }
+    if (ackTimeoutTimer) { clearTimeout(ackTimeoutTimer); ackTimeoutTimer = null; }
+  }
+
+  async function listenForAck() {
+    if (!targetIP) return;
+    const ackRef = ref(db, `connections/${targetIP.replace(/\./g, '_')}/ack`);
+
+    // Clear any previous ack data first, then set up listener
+    await set(ackRef, null).catch(() => {});
+
+    stopAckListener();
+
+    // Start 60-second timeout
+    ackTimeoutTimer = setTimeout(() => {
+      showAckStatus('timeout');
+      showToast('Session timeout — no response from receiver', 'warning');
+      btnTransmit.disabled = false;
+      transmitContentDefault.classList.remove('hidden');
+      transmitContentLoading.classList.add('hidden');
+      stopAckListener();
+    }, 60000);
+
+    ackListenerUnsub = onValue(ackRef, async (snapshot) => {
+      const data = snapshot.val();
+      if (!data) return;
+
+      // Clear timeout since we got a response
+      if (ackTimeoutTimer) { clearTimeout(ackTimeoutTimer); ackTimeoutTimer = null; }
+
+      if (data.type === 'ACK') {
+        showAckStatus('ack');
+        showToast('ACK received — delivery confirmed!', 'success');
+        btnTransmit.disabled = false;
+        transmitContentDefault.classList.remove('hidden');
+        transmitContentLoading.classList.add('hidden');
+        stopAckListener();
+      } else if (data.type === 'NACK') {
+        showAckStatus('nack');
+        showToast('NACK received — retransmitting...', 'warning');
+
+        // Show retransmit progress
+        if (retransmitProgress) retransmitProgress.classList.remove('hidden');
+
+        // Wait a moment, then retransmit clean
+        await new Promise(r => setTimeout(r, 2000));
+
+        if (currentSession && targetIP) {
+          // Clear old ack
+          await set(ackRef, null).catch(() => {});
+
+          // Retransmit original clean codeword
+          const txRef = ref(db, `connections/${targetIP.replace(/\./g, '_')}/transmission`);
+
+          // Play channel animation again
+          const channelContainer = document.getElementById('channel-animation-container');
+          const movingFrame = document.getElementById('sender-moving-frame');
+          if (channelContainer && movingFrame) {
+            channelContainer.classList.remove('hidden');
+            movingFrame.classList.remove('animate-send');
+            void movingFrame.offsetWidth;
+            movingFrame.classList.add('animate-send');
+            await new Promise(r => setTimeout(r, 2500));
+          }
+
+          await set(txRef, {
+            codeword: currentSession.finalCodeword,
+            generator: currentSession.generator,
+            timestamp: Date.now(),
+            wasCorrupted: false,
+            flippedIndex: -1
+          });
+
+          showToast('Frame retransmitted successfully', 'success');
+          showAckStatus('waiting');
+
+          // Restart timeout for next ACK/NACK
+          ackTimeoutTimer = setTimeout(() => {
+            showAckStatus('timeout');
+            showToast('Session timeout — no response from receiver', 'warning');
+            btnTransmit.disabled = false;
+            transmitContentDefault.classList.remove('hidden');
+            transmitContentLoading.classList.add('hidden');
+            stopAckListener();
+          }, 60000);
+        }
+      }
+    });
+  }
+
+  // ─── Transmit ──────────────────────────────────────────────────────
+  btnTransmit.addEventListener('click', async () => {
+    if (!currentSession || !targetIP) return;
+
+    btnTransmit.disabled = true;
+    transmitContentDefault.classList.add('hidden');
+    transmitContentLoading.classList.remove('hidden');
+    hideAckStatus();
+
+    try {
+      const resp = await fetch(`${API_BASE}/api/noise`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ codeword: currentSession.finalCodeword, probability: 0.3 })
+      });
+      const noiseResult = await resp.json();
+
+      const generatedData = {
+        codeword: noiseResult.newCodeword,
+        generator: currentSession.generator,
+        timestamp: Date.now(),
+        wasCorrupted: noiseResult.wasCorrupted,
+        flippedIndex: noiseResult.flippedIndex
+      };
+
+      // Play channel animation
+      const channelContainer = document.getElementById('channel-animation-container');
+      const movingFrame = document.getElementById('sender-moving-frame');
+      
+      if (channelContainer && movingFrame) {
+        channelContainer.classList.remove('hidden');
+        movingFrame.classList.remove('animate-send');
+        void movingFrame.offsetWidth;
+        movingFrame.classList.add('animate-send');
+        await new Promise(resolve => setTimeout(resolve, 2500));
+      }
+
+      const txRef = ref(db, `connections/${targetIP.replace(/\./g, '_')}/transmission`);
+      await set(txRef, generatedData);
+
+      showToast('Frame transmitted successfully', 'success');
+
+      // Now wait for ACK/NACK
+      showAckStatus('waiting');
+      await listenForAck();
+
+    } catch (err) {
+      console.error(err);
+      showToast('Failed to transmit data', 'error');
+      btnTransmit.disabled = false;
+      transmitContentDefault.classList.remove('hidden');
+      transmitContentLoading.classList.add('hidden');
+    }
+  });
+
+  btnNewTransmission.addEventListener('click', async () => {
+    resetEncoder();
+    if (targetIP) {
+      const txRef = ref(db, `connections/${targetIP.replace(/\./g, '_')}/transmission`);
+      const ackRef = ref(db, `connections/${targetIP.replace(/\./g, '_')}/ack`);
+      await set(txRef, null).catch(err => console.error(err));
+      await set(ackRef, null).catch(err => console.error(err));
+    }
+  });
+
+  function resetEncoder() {
+    inputData.value = '';
+    wordCount.textContent = '0 / 50 words';
+    currentSession = null;
+    calculationPanel.classList.add('hidden');
+    transmitSection.classList.add('hidden');
+    btnEncode.disabled = true;
+    errorData.classList.add('hidden');
+    hideAckStatus();
+    stopAckListener();
+  }
 });

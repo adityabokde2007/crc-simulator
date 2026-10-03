@@ -21,11 +21,7 @@
           <style>@media (min-width: 640px) { #header-subtitle { display: block !important; } }</style>
         </div>
       </a>
-      
       <div class="flex items-center gap-2">
-        <a href="/#how-it-works" class="btn-primary" style="text-decoration: none;">
-          How It Works
-        </a>
       </div>
     </div>
   </header>
@@ -33,10 +29,10 @@
   <main class="flex-1 w-full max-w-3xl mx-auto px-4 py-8 flex flex-col gap-8">
     <div class="text-center mb-2">
       <h2 class="text-2xl font-bold text-text-primary">Receiver Device</h2>
-      <p class="text-sm text-text-secondary">Waiting for data from the sender...</p>
+      <p class="text-sm text-text-secondary">Receive frames, verify CRC integrity, and decode the message.</p>
     </div>
 
-    <!-- Simulated IP Display -->
+    <!-- ═══ IP Display ═══ -->
     <div class="bg-surface border border-accent-20 rounded-lg p-4 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm mb-2">
       <div class="flex items-center gap-3">
         <div class="bg-accent-10 p-2 rounded-md">
@@ -48,126 +44,178 @@
         </div>
       </div>
       <div id="ip-setup-container" class="flex gap-2 items-center flex-wrap">
-        <input type="text" id="input-my-ip" placeholder="e.g. 192.168.1.5" class="font-mono" style="width: 160px;">
+        <input type="text" id="input-my-ip" placeholder="e.g. 192.168.1.10" class="font-mono" style="width: 160px;">
         <button id="btn-save-ip" class="btn-primary">Save IP</button>
       </div>
-      <div id="ip-display-container" class="hidden flex gap-2 items-center bg-background border border-border px-3 py-1.5 rounded-md">
+      <div id="ip-display-container" class="hidden flex gap-2 items-center bg-background border border-border px-3 py-2 rounded-md">
         <span id="display-my-ip" class="font-mono text-lg font-bold text-text-primary" style="letter-spacing: 0.05em;"></span>
-        <button id="btn-edit-ip" class="text-xs text-text-secondary hover:text-text-primary ml-2 border border-border px-2 py-1 rounded">Edit</button>
+        <button id="btn-edit-ip" class="text-xs text-text-secondary ml-2 border border-border px-2 py-1 rounded" style="box-shadow:none;">Edit</button>
       </div>
     </div>
 
-    <!-- Connection / Status Wrapper -->
     <div id="connection-panel-wrapper" class="opacity-50 pointer-events-none transition-opacity">
 
-    <!-- Connection Request Notification -->
-    <div id="conn-request-alert" class="hidden bg-surface border-2 border-accent rounded-lg p-6 shadow-md animate-fade-in">
-      <div class="flex flex-col sm:flex-row items-center justify-between gap-4">
-        <div class="flex items-center gap-3">
-          <div class="bg-accent-10 p-3 rounded-full animate-pulse">
-            <svg class="text-accent" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+      <!-- Connection Request Notification -->
+      <div id="conn-request-alert" class="hidden bg-surface border-2 border-accent rounded-lg p-6 shadow-md animate-fade-in mb-4">
+        <div class="flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div class="flex items-center gap-3">
+            <div class="bg-accent-10 p-3 rounded-full animate-pulse">
+              <svg class="text-accent" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+            </div>
+            <div class="flex flex-col">
+              <span class="font-semibold text-text-primary text-lg">Incoming connection request</span>
+              <span class="text-text-secondary">From IP: <span id="display-req-ip" class="font-mono font-bold text-text-primary"></span></span>
+            </div>
           </div>
-          <div class="flex flex-col">
-            <span class="font-semibold text-text-primary text-lg">Incoming connection request</span>
-            <span class="text-text-secondary">From IP: <span id="display-req-ip" class="font-mono font-bold text-text-primary"></span></span>
+          <div class="flex gap-2 w-full sm:w-auto">
+            <button id="btn-reject" class="btn-error flex-1 sm:flex-none">Reject</button>
+            <button id="btn-accept" class="btn-success flex-1 sm:flex-none">Accept</button>
           </div>
+        </div>
+      </div>
+
+      <!-- Status / Waiting State -->
+      <div id="conn-status-accepted" class="hidden flex flex-col sm:flex-row items-center justify-between gap-4 mb-2">
+        <div class="flex items-center gap-3 text-text-primary bg-background p-4 rounded-md border border-border w-full sm:w-auto flex-1">
+          <span class="font-medium">Connected to <span id="display-connected-ip" class="font-mono"></span></span>
         </div>
         <div class="flex gap-2 w-full sm:w-auto">
-          <button id="btn-reject" class="btn-error flex-1 sm:flex-none">
-            <svg viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
-            Reject
+          <button id="btn-disconnect" class="btn-error flex-1 sm:flex-none">Disconnect</button>
+        </div>
+      </div>
+      
+      <div id="conn-status-waiting" class="bg-surface border border-border border-dashed rounded-lg p-8 flex flex-col items-center justify-center text-center gap-4 text-text-secondary">
+        <div class="bg-background p-4 rounded-full">
+          <img src="/assets/connection.png" alt="Connection" width="32" height="32" style="opacity: 0.5; object-fit: contain;">
+        </div>
+        <p>Waiting for a connection request...</p>
+      </div>
+
+      <!-- ═══ RECEIVER PANEL ═══ -->
+      <div id="receiver-panel" class="hidden bg-surface rounded-lg border border-border p-6 shadow-sm flex flex-col gap-6 w-full animate-fade-in mt-4">
+        <div class="flex items-center gap-2 border-b border-border pb-4">
+          <div class="bg-accent-10 p-2 rounded-md text-text-primary">
+            <img src="/assets/receiver.png" alt="Receiver icon" width="28" height="28" style="object-fit: contain;">
+          </div>
+          <h2 class="text-xl font-semibold text-text-primary">Receiver Panel</h2>
+        </div>
+
+        <!-- Waiting for data -->
+        <div id="rx-waiting-data" class="flex-1 flex flex-col items-center justify-center border-2 border-dashed border-border rounded-lg bg-surface text-text-secondary text-sm p-6 text-center" style="min-height: 120px; opacity: 0.5;">
+          Waiting for frame transmission...
+        </div>
+
+        <!-- Data received view -->
+        <div id="rx-channel-animation-container" class="hidden mb-6 animate-fade-in">
+          <h3 class="text-sm font-semibold text-text-secondary mb-2">Incoming Frame...</h3>
+          <div class="channel-track">
+            <div class="moving-frame" id="rx-moving-frame">
+              <div class="moving-header">Header</div>
+              <div class="moving-payload" id="rx-moving-payload">Payload</div>
+              <div class="moving-crc">CRC Trailer</div>
+            </div>
+          </div>
+        </div>
+
+        <div id="rx-data-view" class="hidden flex flex-col gap-8 flex-1">
+          
+          <!-- Step 1: Received Frame -->
+          <div class="step-container">
+            <h3 class="text-lg font-bold text-text-primary mb-1">Step 1: Received Frame</h3>
+            <p class="text-sm text-text-secondary mb-3">Bit stream received and segmented into Header, Payload, and CRC Trailer.</p>
+            
+            <div class="px-2 sm:px-8 py-2">
+              <div class="frame-visual" id="rx-frame-visual">
+                <div class="frame-segment-header">
+                  <span class="frame-segment-label">Header</span>
+                  <span class="frame-segment-value font-medium text-text-primary" style="opacity: 0.9;">96 bits</span>
+                </div>
+                <div class="frame-segment-payload">
+                  <span class="frame-segment-label">Payload</span>
+                  <span class="frame-segment-value font-medium text-text-primary" style="opacity: 0.9;" id="rx-display-payload-len"></span>
+                </div>
+                <div class="frame-segment-crc">
+                  <span class="frame-segment-label">Trailer (CRC)</span>
+                  <span class="frame-segment-value font-medium text-text-primary" style="opacity: 0.9;" id="rx-display-final-crc"></span>
+                </div>
+              </div>
+              
+              <div class="mt-6 p-4 bg-background rounded-md border border-border shadow-sm">
+                <span class="text-sm font-semibold text-text-primary">Raw Bit Stream:</span>
+                <div id="rx-raw-bitstream" class="font-mono text-base text-text-primary mt-2 break-all" style="line-height: 1.8; letter-spacing: 0.1em; word-spacing: 0.3em;"></div>
+              </div>
+            </div>
+          </div>
+
+          <button id="btn-verify" class="btn-primary w-full py-3 justify-center text-base">
+            <span>Verify CRC Integrity</span>
+            <svg viewBox="0 0 24 24"><path d="m9 12 2 2 4-4"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/><path d="M5 12V7a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v5"/></svg>
           </button>
-          <button id="btn-accept" class="btn-success flex-1 sm:flex-none">
-            <svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>
-            Accept
-          </button>
-        </div>
-      </div>
-    </div>
 
-    <!-- Status / Waiting State -->
-    <div id="conn-status-accepted" class="hidden flex flex-col sm:flex-row items-center justify-between gap-4 mb-2">
-      <div class="flex items-center gap-3 text-text-primary bg-background p-4 rounded-md border border-border w-full sm:w-auto flex-1">
-        <span class="font-medium">Connected to <span id="display-connected-ip" class="font-mono"></span></span>
-      </div>
-      <div class="flex gap-2 w-full sm:w-auto">
-        <button id="btn-disconnect" class="btn-error flex-1 sm:flex-none">Disconnect</button>
-      </div>
-    </div>
-    
-    <div id="conn-status-waiting" class="bg-surface border border-border border-dashed rounded-lg p-8 flex flex-col items-center justify-center text-center gap-4 text-text-secondary">
-      <div class="bg-background p-4 rounded-full">
-        <img src="/assets/connection.png" alt="Connection" width="32" height="32" style="opacity: 0.5; object-fit: contain;">
-      </div>
-      <p>Waiting for a connection request...</p>
-    </div>
-
-    <!-- Receiver Panel -->
-    <div id="receiver-panel" class="hidden bg-surface rounded-lg border border-border p-6 shadow-sm flex flex-col gap-6 w-full animate-fade-in">
-      <div class="flex items-center gap-2 border-b border-border pb-4">
-        <div class="bg-accent-10 p-2 rounded-md text-text-primary">
-          <img src="/assets/receiver.png" alt="Receiver icon" width="28" height="28" style="object-fit: contain;">
-        </div>
-        <h2 class="text-xl font-semibold text-text-primary">Receiver Panel</h2>
-      </div>
-
-      <div id="rx-waiting-data" class="flex-1 flex flex-col items-center justify-center min-h-[250px] border-2 border-dashed border-border rounded-lg bg-surface text-text-secondary text-sm p-6 text-center" style="opacity: 0.5;">
-        Waiting for transmission...
-      </div>
-
-      <div id="rx-data-view" class="hidden flex flex-col gap-4 flex-1">
-        <div class="flex flex-col items-center gap-3" style="overflow: visible;">
-          <span class="text-sm font-medium text-text-secondary">Received Codeword</span>
-          <div id="rx-bit-cells" class="flex flex-wrap justify-center gap-1.5 pt-1 pb-1" style="overflow: visible;">
-            <!-- JS dynamically inserts bit cells -->
-          </div>
-        </div>
-
-        <!-- Detailed Calculation Panel (Visible automatically) -->
-        <div id="calculation-panel" class="hidden bg-surface rounded-lg border border-border p-6 shadow-sm flex flex-col gap-6 w-full animate-fade-in mt-2 border-t pt-6 border-border">
-          <div class="flex items-center gap-2 border-b border-border pb-4">
-            <div class="bg-accent-10 p-2 rounded-md text-text-primary">
-              <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" stroke-width="2" fill="none"><rect width="16" height="20" x="4" y="2" rx="2"/><line x1="8" x2="16" y1="6" y2="6"/><line x1="16" x2="16" y1="14" y2="18"/><path d="M16 10h.01"/><path d="M12 10h.01"/><path d="M8 10h.01"/><path d="M12 14h.01"/><path d="M8 14h.01"/><path d="M12 18h.01"/><path d="M8 18h.01"/></svg>
+          <!-- Layers Container -->
+          <div id="rx-layers-container" class="hidden flex flex-col gap-8 animate-fade-in">
+            
+            <!-- Step 2: CRC Verification -->
+            <div class="step-container">
+              <h3 class="text-lg font-bold text-text-primary mb-1">Step 2: CRC-16 Verification</h3>
+              <p class="text-sm text-text-secondary mb-3">Entire frame (including CRC) divided by polynomial <code class="bg-background px-1.5 py-0.5 rounded border border-border text-xs font-mono">10001000000100001</code>. Remainder = 0 means no error.</p>
+              
+              <div class="px-2 sm:px-8 py-2">
+                <div class="crc-division-outer" id="rx-crc-division-outer">
+                  <div class="crc-division-scroll" id="rx-crc-division-scroll">
+                    <pre class="crc-division-pre" id="rx-calc-steps-container"><!-- Generated by JS --></pre>
+                  </div>
+                  <button id="rx-crc-toggle-btn" class="crc-toggle-btn hidden" type="button">
+                    <span id="rx-crc-toggle-text">Show full calculation</span>
+                    <svg class="chevron-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+                  </button>
+                </div>
+              </div>
             </div>
-            <h2 class="text-xl font-semibold text-text-primary">Step-by-Step Verification Calculation</h2>
-          </div>
-          <div id="calc-steps-container" class="w-full flex flex-col">
-            <!-- Steps generated via JS -->
-          </div>
-        </div>
 
-        <button id="btn-verify" class="btn-primary w-full py-2.5 justify-center mt-2">
-          <span>Verify Integrity</span>
-          <svg viewBox="0 0 24 24"><path d="m9 12 2 2 4-4"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/><path d="M5 12V7a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v5"/></svg>
-        </button>
+            <!-- Step 3: Result -->
+            <div id="verification-result" class="step-container border-t border-border pt-6">
+              <!-- Result Pass -->
+              <div id="result-passed" class="hidden bg-success-10 border border-success rounded-md p-6 text-center shadow-sm mx-2 sm:mx-8">
+                <div class="flex items-center justify-center gap-2 font-bold text-xl mb-2 text-success">
+                  <span>NO ERROR DETECTED</span>
+                </div>
+                <p class="text-sm text-text-secondary mb-4">CRC remainder is all zeros. Payload extracted and decoded successfully.</p>
+                <div class="text-left bg-background p-4 rounded-md border border-border shadow-sm">
+                  <span class="text-xs font-semibold text-text-secondary uppercase">Decoded Message:</span>
+                  <div id="decoded-message-box" class="text-text-primary mt-2 text-lg font-medium" style="word-break: break-word;"></div>
+                </div>
+                <button id="btn-send-ack" class="mt-4 w-full py-3 rounded-md font-bold text-white transition-all" style="background-color: #166534; cursor: pointer;" onmouseover="this.style.opacity='0.85'" onmouseout="this.style.opacity='1'">
+                  <div class="flex items-center justify-center gap-2">
+                    <span>Send ACK to Sender</span>
+                  </div>
+                </button>
+                <div id="ack-sent-status" class="hidden mt-3 text-sm font-medium text-success">ACK sent to sender successfully</div>
+              </div>
 
-        <div id="verification-result" class="hidden mt-4 pt-4 border-t border-border flex flex-col gap-4 animate-fade-in">
-          <div id="result-passed" class="hidden bg-background border border-border rounded-md p-4 text-center">
-            <div class="flex items-center justify-center gap-2 text-text-primary font-bold text-lg mb-1">
-              <svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" fill="none"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/></svg>
-              <span>Data is Valid</span>
+              <!-- Result Fail -->
+              <div id="result-failed" class="hidden bg-error-10 border border-error rounded-md p-6 text-center shadow-sm mx-2 sm:mx-8">
+                <div class="flex items-center justify-center gap-2 font-bold text-xl mb-2 text-error">
+                  <span>ERROR DETECTED</span>
+                </div>
+                <p class="text-sm text-text-secondary mb-4">CRC remainder is non-zero — bits were flipped during transmission.</p>
+                <div class="text-left bg-background p-4 rounded-md border border-border shadow-sm">
+                  <span class="text-xs font-semibold text-text-secondary uppercase">Corrupted Output (Decoding Attempt):</span>
+                  <div id="garbled-message-box" class="text-text-primary mt-2 text-lg font-medium" style="word-break: break-word;"></div>
+                </div>
+                <button id="btn-send-nack" class="mt-4 w-full py-3 rounded-md font-bold text-white transition-all" style="background-color: #991b1b; cursor: pointer;" onmouseover="this.style.opacity='0.85'" onmouseout="this.style.opacity='1'">
+                  <div class="flex items-center justify-center gap-2">
+                    <span>Send NACK — Request Retransmission</span>
+                  </div>
+                </button>
+                <div id="nack-sent-status" class="hidden mt-3 text-sm font-medium text-error">NACK sent — waiting for retransmission...</div>
+              </div>
             </div>
-            <p class="text-sm text-text-secondary">The CRC remainder is zero. No errors were detected.</p>
-          </div>
 
-          <div id="result-failed" class="hidden bg-background border border-border rounded-md p-4 text-center">
-            <div class="flex items-center justify-center gap-2 text-text-primary font-bold text-lg mb-1">
-              <svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" fill="none"><circle cx="12" cy="12" r="10"/><line x1="15" x2="9" y1="9" y2="15"/><line x1="9" x2="15" y1="9" y2="15"/></svg>
-              <span>Data is Corrupted</span>
-            </div>
-            <p class="text-sm text-text-secondary">The CRC remainder is non-zero. Errors occurred during transmission.</p>
           </div>
-
-          <div class="flex flex-col sm:flex-row gap-3 pt-2">
-            <button id="btn-download-pdf" class="btn-dark flex-1 py-2">
-              <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
-              <span>Report</span>
-            </button>
         </div>
       </div>
-    </div>
-    </div> <!-- connection-panel-wrapper end -->
-    
+    </div> 
   </main>
 
   <script type="module" src="/js/receiver.js"></script>
