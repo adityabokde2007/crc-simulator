@@ -417,8 +417,8 @@ svg {
 /* ─── Collapsible ASCII table ─────────────────────────────────────── */
 .ascii-table-wrapper {
   max-height: none;
-  overflow: hidden;
-}
+  overflow-y: hidden;
+  overflow-x: auto;}
 .ascii-table-wrapper.collapsed {
   max-height: 260px;  /* ~6 rows */
 }
@@ -728,6 +728,15 @@ svg {
 
   .crc-division-pre {
     font-size: 0.6875rem;
+  }
+
+  .moving-frame {
+    height: 44px;
+    width: 320px;
+    max-width: 95%;
+  }
+  .moving-header, .moving-payload, .moving-crc {
+    font-size: 0.7rem;
   }
 }
 
