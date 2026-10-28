@@ -1,6 +1,7 @@
 import { db } from './firebase-config.js';
 import { ref, set, onValue } from 'https://www.gstatic.com/firebasejs/10.13.2/firebase-database.js';
 import { showToast } from './toast.js';
+import { clientDeencapsulate } from './crc-engine.js';
 
 const API_BASE = (window.location.hostname === 'localhost' && window.location.port === '5000')
   ? ''
@@ -278,6 +279,7 @@ document.addEventListener('DOMContentLoaded', () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ codeword: receivedTransmission.codeword })
       });
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const result = await resp.json();
       
       if (result.error) {
@@ -288,8 +290,9 @@ document.addEventListener('DOMContentLoaded', () => {
       renderVerificationProcess(result);
 
     } catch (err) {
-      console.error('Verify error:', err);
-      showToast('Error connecting to backend.', 'error');
+      console.warn('Backend unavailable, using local client-side CRC engine:', err);
+      const result = clientDeencapsulate(receivedTransmission.codeword);
+      renderVerificationProcess(result);
     }
   }
 
@@ -305,6 +308,7 @@ document.addEventListener('DOMContentLoaded', () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ codeword: receivedTransmission.codeword })
       });
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const result = await resp.json();
       
       if (result.error) {
@@ -317,8 +321,11 @@ document.addEventListener('DOMContentLoaded', () => {
       renderVerificationProcess(result);
 
     } catch (err) {
-      console.error('Verify error:', err);
-      showToast('Error connecting to backend.', 'error');
+      console.warn('Backend unavailable, using local client-side CRC engine:', err);
+      const result = clientDeencapsulate(receivedTransmission.codeword);
+      btnVerify.classList.add('hidden');
+      renderVerificationProcess(result);
+    } finally {
       resetVerifyBtn();
     }
   });

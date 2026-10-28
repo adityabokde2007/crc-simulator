@@ -1,6 +1,7 @@
 import { db } from './firebase-config.js';
 import { ref, set, onValue } from 'https://www.gstatic.com/firebasejs/10.13.2/firebase-database.js';
 import { showToast } from './toast.js';
+import { clientEncapsulate, clientSimulateChannel } from './crc-engine.js';
 
 const API_BASE = (window.location.hostname === 'localhost' && window.location.port === '5000')
   ? ''
@@ -244,6 +245,7 @@ document.addEventListener('DOMContentLoaded', () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: text })
       });
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const data = await resp.json();
 
       if (data.error) {
@@ -256,8 +258,10 @@ document.addEventListener('DOMContentLoaded', () => {
       renderCalculations(data);
       
     } catch (err) {
-      console.error(err);
-      showToast('Backend connection failed.', 'error');
+      console.warn('Backend unavailable, using local client-side CRC engine:', err);
+      const data = clientEncapsulate(text);
+      currentSession = data;
+      renderCalculations(data);
     } finally {
       resetEncoderBtn();
     }
@@ -571,13 +575,19 @@ document.addEventListener('DOMContentLoaded', () => {
     transmitContentLoading.classList.remove('hidden');
     hideAckStatus();
 
+    let noiseResult;
     try {
       const resp = await fetch(`${API_BASE}/api/noise`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ codeword: currentSession.finalCodeword, probability: 0.3 })
       });
-      const noiseResult = await resp.json();
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      noiseResult = await resp.json();
+    } catch (err) {
+      console.warn('Backend noise API unavailable, using local channel simulator:', err);
+      noiseResult = clientSimulateChannel(currentSession.finalCodeword, 0.3);
+    }
 
       const generatedData = {
         codeword: noiseResult.newCodeword,
