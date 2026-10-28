@@ -575,19 +575,20 @@ document.addEventListener('DOMContentLoaded', () => {
     transmitContentLoading.classList.remove('hidden');
     hideAckStatus();
 
-    let noiseResult;
     try {
-      const resp = await fetch(`${API_BASE}/api/noise`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ codeword: currentSession.finalCodeword, probability: 0.3 })
-      });
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-      noiseResult = await resp.json();
-    } catch (err) {
-      console.warn('Backend noise API unavailable, using local channel simulator:', err);
-      noiseResult = clientSimulateChannel(currentSession.finalCodeword, 0.3);
-    }
+      let noiseResult;
+      try {
+        const resp = await fetch(`${API_BASE}/api/noise`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ codeword: currentSession.finalCodeword, probability: 0.3 })
+        });
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        noiseResult = await resp.json();
+      } catch (fetchErr) {
+        console.warn('Backend noise API unavailable, using local channel simulator:', fetchErr);
+        noiseResult = clientSimulateChannel(currentSession.finalCodeword, 0.3);
+      }
 
       const generatedData = {
         codeword: noiseResult.newCodeword,
