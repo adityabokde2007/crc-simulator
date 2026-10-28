@@ -1,14 +1,14 @@
-import { initializeApp } from "firebase/app";
-import { getDatabase } from "firebase/database";
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-app.js";
+import { getDatabase } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-database.js";
 
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  databaseURL: import.meta.env.VITE_FIREBASE_DATABASE_URL,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID
+  apiKey: "AIzaSyBdFIxRbXZrOT2GhnudRlzyaAOPeeKau50",
+  authDomain: "crc-simulator.firebaseapp.com",
+  databaseURL: "https://crc-simulator-default-rtdb.firebaseio.com",
+  projectId: "crc-simulator",
+  storageBucket: "crc-simulator.firebasestorage.app",
+  messagingSenderId: "551214015277",
+  appId: "1:551214015277:web:5f7e2d8d4ad6943aba29a4"
 };
 
 const app = initializeApp(firebaseConfig);

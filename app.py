@@ -16,18 +16,19 @@ CORS(app)
 
 # ─── Serve Frontend Files ─────────────────────────────────────────────
 @app.route('/')
+@app.route('/index.html')
 def serve_index():
-    return send_from_directory('.', 'index.html')
+    return send_from_directory('html', 'index.html')
 
 
 @app.route('/sender.html')
 def serve_sender():
-    return send_from_directory('.', 'sender.html')
+    return send_from_directory('html', 'sender.html')
 
 
 @app.route('/receiver.html')
 def serve_receiver():
-    return send_from_directory('.', 'receiver.html')
+    return send_from_directory('html', 'receiver.html')
 
 
 # ─── New Endpoints for Final Workflow ─────────────────────────────────
