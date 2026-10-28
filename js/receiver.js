@@ -2,7 +2,11 @@ import { db } from './firebase-config.js';
 import { ref, set, onValue } from 'https://www.gstatic.com/firebasejs/10.13.2/firebase-database.js';
 import { showToast } from './toast.js';
 
-const API_BASE = (window.location.hostname === 'localhost' && window.location.port !== '5000') ? 'http://localhost:5000' : '';
+const API_BASE = (window.location.hostname === 'localhost' && window.location.port === '5000')
+  ? ''
+  : (window.location.hostname === 'localhost' 
+      ? 'http://localhost:5000' 
+      : 'https://crc-simulator-backend.onrender.com');
 
 document.addEventListener('DOMContentLoaded', () => {
 
