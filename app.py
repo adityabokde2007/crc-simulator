@@ -18,17 +18,17 @@ CORS(app)
 @app.route('/')
 @app.route('/index.html')
 def serve_index():
-    return send_from_directory('html', 'index.html')
+    return send_from_directory('.', 'index.html')
 
 
 @app.route('/sender.html')
 def serve_sender():
-    return send_from_directory('html', 'sender.html')
+    return send_from_directory('.', 'sender.html')
 
 
 @app.route('/receiver.html')
 def serve_receiver():
-    return send_from_directory('html', 'receiver.html')
+    return send_from_directory('.', 'receiver.html')
 
 
 # ─── New Endpoints for Final Workflow ─────────────────────────────────

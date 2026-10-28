@@ -1,14 +1,6 @@
 {
-  "framework": null,
-  "buildCommand": null,
-  "outputDirectory": ".",
   "cleanUrls": true,
   "rewrites": [
-    { "source": "/api/(.*)", "destination": "/api/index.py" },
-    { "source": "/", "destination": "/html/index.html" },
-    { "source": "/index.html", "destination": "/html/index.html" },
-    { "source": "/sender.html", "destination": "/html/sender.html" },
-    { "source": "/receiver.html", "destination": "/html/receiver.html" }
+    { "source": "/api/(.*)", "destination": "/api/index.py" }
   ]
 }
-
