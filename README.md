@@ -1,53 +1,71 @@
 # CRC Simulator
 
-A web-based interactive tool for visualizing Cyclic Redundancy Check (CRC) error detection. This simulator demonstrates how data is encoded using polynomial division in modulo-2 arithmetic, how it can be corrupted during transmission, and how the receiver detects these errors.
+A web-based interactive tool for visualizing Cyclic Redundancy Check (CRC) error detection in computer networks. This simulator demonstrates how data is encapsulated into frames, encoded using modulo-2 polynomial division, transmitted through a noisy channel, and verified at the receiver end.
 
 ## Architecture
 
 This project is built using:
-- **Vanilla HTML / CSS / JavaScript** (No frontend frameworks or UI libraries)
-- **Firebase Realtime Database** (For real-time connection and transmission simulation between two browser tabs/devices)
-- **Vite** (Used as a lightweight development server and module bundler)
-- **jsPDF** (For generating downloadable PDF reports)
+- **Frontend**: Vanilla HTML5, CSS3, and JavaScript (ES Modules via CDN — zero npm dependencies).
+- **Backend**: Python (Flask) for CRC mathematical logic, frame encapsulation/de-encapsulation, and channel simulation.
+- **Real-time Sync**: Firebase Realtime Database (via official Google CDN) for peer-to-peer transmission simulation across separate browser tabs/devices.
 
-The app consists of three main pages:
-1. `index.html` - The landing page to select a role.
-2. `sender.html` - The Sender device page, responsible for encoding data and simulating noise.
-3. `receiver.html` - The Receiver device page, responsible for receiving data and verifying integrity.
+### Project Structure
+
+```text
+crc simulator/
+├── assets/          # Project icons and UI graphics
+├── css/             # Stylesheets (clean, responsive UI)
+├── html/            # Multi-page views
+│   ├── index.html       # Landing page (Role selection: Sender or Receiver)
+│   ├── sender.html      # Sender dashboard (Encoding, noise injection, transmission)
+│   └── receiver.html    # Receiver dashboard (CRC verification, ACK/NACK handling)
+├── js/              # Modular frontend scripts
+│   ├── firebase-config.js  # Firebase Realtime DB configuration
+│   ├── sender.js           # Sender-side UI logic and event handlers
+│   ├── receiver.js         # Receiver-side UI logic and verification
+│   ├── landing.js          # Landing page accordion & helpers
+│   ├── modal.js            # Modal dialog handlers
+│   └── toast.js            # Notification toasts
+├── app.py           # Flask server (serves frontend & CRC REST APIs)
+├── crc_logic.py     # Core CRC calculations, XOR modulo-2 division, MAC headers
+└── requirements.txt # Python dependencies (Flask, flask-cors)
+```
 
 ## Prerequisites
 
-- Node.js (v18 or higher recommended)
-- A Firebase project with Realtime Database enabled and rules set to allow read/write (`".read": true`, `".write": true`).
+- **Python 3.8+** (No Node.js or npm required!)
 
 ## Getting Started
 
-1. **Clone the repository** (or download the source code).
-2. **Install dependencies**:
+1. **Clone the repository**:
    ```bash
-   npm install
+   git clone https://github.com/adityabokde2007/crc-simulator.git
+   cd crc-simulator
    ```
-3. **Configure Firebase**:
-   Create a `.env` file in the root directory and add your Firebase configuration:
-   ```env
-   VITE_FIREBASE_API_KEY=your_api_key
-   VITE_FIREBASE_AUTH_DOMAIN=your_auth_domain
-   VITE_FIREBASE_DATABASE_URL=your_database_url
-   VITE_FIREBASE_PROJECT_ID=your_project_id
-   VITE_FIREBASE_STORAGE_BUCKET=your_storage_bucket
-   VITE_FIREBASE_MESSAGING_SENDER_ID=your_messaging_sender_id
-   VITE_FIREBASE_APP_ID=your_app_id
-   ```
-4. **Run the development server**:
+
+2. **Install Python dependencies**:
    ```bash
-   npm run dev
+   pip install -r requirements.txt
    ```
-5. **Open the app**:
-   Navigate to the local URL provided by Vite (usually `http://localhost:5173`). Open it in two separate tabs to simulate the Sender and Receiver.
 
-## Features
+3. **Start the application**:
+   ```bash
+   python app.py
+   ```
 
-- **Real-time Two-Device Simulation**: Connect a sender and receiver using simulated IP addresses.
-- **Polynomial Math Visualization**: Step-by-step display of the modulo-2 division process for both encoding and verifying.
-- **Noise Injection**: Manually flip bits or inject random errors into the codeword before transmission to observe how CRC catches them.
-- **Report Generation**: Download a detailed PDF summary of the transmission and integrity check results.
+4. **Open in browser**:
+   Navigate to:
+   ```text
+   http://localhost:5000
+   ```
+   Open the URL in **two separate tabs** (or two devices):
+   - Choose **"I'm the Sender"** on one tab.
+   - Choose **"I'm the Receiver"** on the other tab.
+
+## Key Features
+
+- **Real-time Two-Device Simulation**: Connect sender and receiver in real-time using simulated IP addresses over Firebase.
+- **Frame Encapsulation**: Converts user text to 8-bit ASCII binary and appends simulated 48-bit MAC addresses (Source & Destination).
+- **Polynomial Math Visualization**: Step-by-step display of Modulo-2 binary XOR division using CRC-16-CCITT polynomial (`x^16 + x^12 + x^5 + 1`).
+- **Channel Noise Simulation**: Simulates transmission over a noisy channel with bit-flip corruption to observe how CRC catches transmission errors.
+- **Automatic ARQ (ACK / NACK)**: If corruption is detected, receiver sends NACK, prompting sender to automatically retransmit a clean frame.
